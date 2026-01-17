@@ -19,6 +19,41 @@ TASKS_CFG = {
         "success_metric_to_win": 0.0,
         "success_metric_tolerance": 0.2,
     },
+
+
+    "LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0": {
+        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now",
+        "success_metric": (
+            "torch.sum(self._cream_cheese.data.root_pos_w[:, 2] > 0.4)"
+        ),
+        "success_metric_to_win": 0.9,
+        "success_metric_tolerance": 0.02,
+    },
+
+
+
+    "Isaac-Franka-Cabinet-Direct-v0": {
+        "description": "control the franka arm to open the cabinet drawer",
+        "success_metric": (
+            "torch.exp(-((0.39 - self._cabinet.data.joint_pos[env_ids, 1]) ** 2) / (2 * 0.01**2)).mean()"
+        ),
+        "success_metric_to_win": 0.9,
+        "success_metric_tolerance": 0.02,
+    },
+
+    # this one is too loose
+
+    # "Isaac-Franka-Cabinet-Direct-v0": {
+    #     "description": "control the franka arm to open the cabinet drawer",
+    #     "success_metric": (
+    #         "torch.clamp("
+    #         "self._cabinet.data.joint_pos[env_ids, 1] / 0.39, "
+    #         "0.0, 1.0"
+    #         ").mean()"
+    #     ),
+    #     "success_metric_to_win": 1.0,
+    #     "success_metric_tolerance": 0.05,
+    # },
 }
 """Configuration for the tasks supported by Isaac Lab Eureka.
 

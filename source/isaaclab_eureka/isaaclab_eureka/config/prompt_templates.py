@@ -24,6 +24,7 @@ Some helpful tips for writing the reward function code:
     (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
     (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
     (4) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+    (5) Subgoals: If possible, the trained policy should generate reasonable policy without jittering and weird motion. The motion should be realistic and efficient.
 """
 
 

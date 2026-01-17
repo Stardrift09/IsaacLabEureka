@@ -172,7 +172,7 @@ class EurekaTaskManager:
                 if self._idx == 0 and not hasattr(self, "_observation_string"):
                     self._observation_string = inspect.getsource(self._env.unwrapped._get_observations)
                     self._observations_queue.put(self._observation_string)
-
+                    print(self._observation_string)
             # Insert the reward function into the environment and run the training
             reward_func_string = rewards_queue.get()
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):
