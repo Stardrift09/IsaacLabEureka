@@ -138,8 +138,8 @@ def main(args_cli):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
-    parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
-    parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+    parser.add_argument("--task", type=str, default="Isaac-Franka-Cabinet-Direct-v0", help="Name of the task.")
+    parser.add_argument("--num_envs", type=int, default=20, help="Number of environments to simulate.")
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--checkpoint", type=str, default=None, help="Absolute path to model checkpoint.")
     parser.add_argument(

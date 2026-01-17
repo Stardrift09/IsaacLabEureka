@@ -96,11 +96,13 @@ class EurekaTaskManager:
         self._rewards_queues = [multiprocessing.Queue() for _ in range(self._num_processes)]
         # Used to communicate the observations method to the main process
         self._observations_queue = multiprocessing.Queue()
+        self._dones_queue = multiprocessing.Queue()
         # Used to communicate the results of the training runs to the main process
         self._results_queue = multiprocessing.Queue()
         # Used to signal the processes to terminate
         self.termination_event = multiprocessing.Event()
 
+        self._debug = False # before the process to work properly
         for idx in range(self._num_processes):
             p = multiprocessing.Process(target=self._worker, args=(idx, self._rewards_queues[idx]))
             self._processes[idx] = p
@@ -108,11 +110,15 @@ class EurekaTaskManager:
 
         # Fetch the observations
         self._get_observations_as_string = self._observations_queue.get()
-
+        self._get_dones_as_string = self._dones_queue.get()
     @property
     def get_observations_method_as_string(self) -> str:
         """The _get_observations method of the environment as a string."""
         return self._get_observations_as_string
+    @property
+    def get_dones_method_as_string(self) -> str:
+        """The _get_observations method of the environment as a string."""
+        return self._get_dones_as_string
 
     def close(self):
         """Close the task manager and clean up the processes."""
@@ -163,6 +169,7 @@ class EurekaTaskManager:
             idx: The index of the worker.
             rewards_queue: The queue to receive the reward function from the main process
         """
+
         self._idx = idx
         while not self.termination_event.is_set():
             if not hasattr(self, "_env"):
@@ -172,7 +179,15 @@ class EurekaTaskManager:
                 if self._idx == 0 and not hasattr(self, "_observation_string"):
                     self._observation_string = inspect.getsource(self._env.unwrapped._get_observations)
                     self._observations_queue.put(self._observation_string)
-                    print(self._observation_string)
+                    if self._debug:
+                        print(self._observation_string)
+
+                if self._idx == 0 and not hasattr(self, "_done_string"):
+                    self._done_string = inspect.getsource(self._env.unwrapped._get_dones)
+                    self._dones_queue.put(self._done_string)
+                    if self._debug:
+                        print(self._done_string)
+                        self.close()
             # Insert the reward function into the environment and run the training
             reward_func_string = rewards_queue.get()
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):
@@ -338,3 +353,6 @@ class EurekaTaskManager:
             runner.run({"train": True, "play": False, "sigma": None})
         else:
             raise Exception(f"framework {framework} is not supported yet.")
+
+
+

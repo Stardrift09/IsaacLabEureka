@@ -52,6 +52,7 @@ class Eureka:
         """
 
         # Load the task description and success metric
+        self._debug = True
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
             success_metric_string = TASKS_CFG[task].get("success_metric")
@@ -109,7 +110,11 @@ class Eureka:
             task_description=self._task_description,
             success_metric_to_win=self._success_metric_to_win,
             get_observations_method_as_string=self._task_manager.get_observations_method_as_string,
+            get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
         )
+        if self._debug:
+            print(user_prompt)
+            
         # The assistant prompt is used to feed the previous LLM output back into the LLM
         assistant_prompt = None
 
@@ -119,7 +124,8 @@ class Eureka:
         for iter in range(max_eureka_iterations):
             print(f"\n{'#' * 20} Running Eureka Iteration {iter} {'#' * 20} \n")
             # Generate the GPT reward methods
-            llm_outputs = self._llm_manager.prompt(user_prompt=user_prompt, assistant_prompt=assistant_prompt)
+
+            # llm_outputs = self._llm_manager.prompt(user_prompt=user_prompt, assistant_prompt=assistant_prompt)
             gpt_reward_method_strings = llm_outputs["reward_strings"]
             # Log the llm outputs
             for idx, gpt_reward_method_string in enumerate(gpt_reward_method_strings):
