@@ -96,7 +96,7 @@ class EurekaTaskManager:
         self._rewards_queues = [multiprocessing.Queue() for _ in range(self._num_processes)]
         # Used to communicate the observations method to the main process
         self._observations_queue = multiprocessing.Queue()
-        self._dones_queue = multiprocessing.Queue()
+        # self._dones_queue = multiprocessing.Queue()
         # Used to communicate the results of the training runs to the main process
         self._results_queue = multiprocessing.Queue()
         # Used to signal the processes to terminate
@@ -110,15 +110,15 @@ class EurekaTaskManager:
 
         # Fetch the observations
         self._get_observations_as_string = self._observations_queue.get()
-        self._get_dones_as_string = self._dones_queue.get()
+        # self._get_dones_as_string = self._dones_queue.get()
     @property
     def get_observations_method_as_string(self) -> str:
         """The _get_observations method of the environment as a string."""
         return self._get_observations_as_string
     @property
-    def get_dones_method_as_string(self) -> str:
-        """The _get_observations method of the environment as a string."""
-        return self._get_dones_as_string
+    # def get_dones_method_as_string(self) -> str:
+    #     """The _get_observations method of the environment as a string."""
+    #     return self._get_dones_as_string
 
     def close(self):
         """Close the task manager and clean up the processes."""
@@ -182,12 +182,12 @@ class EurekaTaskManager:
                     if self._debug:
                         print(self._observation_string)
 
-                if self._idx == 0 and not hasattr(self, "_done_string"):
-                    self._done_string = inspect.getsource(self._env.unwrapped._get_dones)
-                    self._dones_queue.put(self._done_string)
-                    if self._debug:
-                        print(self._done_string)
-                        self.close()
+                # if self._idx == 0 and not hasattr(self, "_done_string"):
+                #     self._done_string = inspect.getsource(self._env.unwrapped._get_dones)
+                #     self._dones_queue.put(self._done_string)
+                #     if self._debug:
+                #         print(self._done_string)
+                #         self.close()
             # Insert the reward function into the environment and run the training
             reward_func_string = rewards_queue.get()
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):

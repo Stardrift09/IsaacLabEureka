@@ -20,11 +20,12 @@ The output of the reward function should consist of two items:
 The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
 
 Some helpful tips for writing the reward function code:
-    (1) You may find it helpful to normalize the reward to a fixed range by applying transformations like torch.exp to the overall reward or its components
-    (2) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
-    (3) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
-    (4) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
-    (5) Subgoals: If possible, the trained policy should generate reasonable policy without jittering and weird motion. The motion should be realistic and efficient.
+    (1) You are using Isaaclab 2.3. Design the reward to be GPU-safe and training-stable: avoid unguarded division, ensure all exponentials and normalizations are bounded, sanitize all environment state inputs with torch.nan_to_num, and assert the reward remains finite for every timestep, including resets and failure states.
+    (2) You may find it helpful to normalize the reward to a fixed range by applying transformations like torch.exp to the overall reward or its components
+    (3) If you choose to transform a reward component, then you must also introduce a temperature parameter inside the transformation function; this parameter must be a named variable in the reward function and it must not be an input variable. Each transformed reward component should have its own temperature variable
+    (4) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
+    (5) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
+    (6) Subgoals: If possible, the trained policy should generate reasonable policy without jittering and weird motion. The motion should be realistic and efficient.
 """
 
 
@@ -62,6 +63,4 @@ Write a reward function for the following task: {task_description}
 The desired task score is: {success_metric_to_win}
 Here is how we get the observations and updata important intermediate values from the environment:
 {get_observations_method_as_string}
-and
-{get_dones_method_as_string}
 """

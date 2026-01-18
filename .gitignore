@@ -2,8 +2,4 @@
 *.egg-info
 logs/
 libero/
-<<<<<<< Updated upstream
-isaaclab/
-=======
 Isaaclab/
->>>>>>> Stashed changes

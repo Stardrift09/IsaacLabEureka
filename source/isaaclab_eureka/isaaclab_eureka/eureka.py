@@ -110,7 +110,7 @@ class Eureka:
             task_description=self._task_description,
             success_metric_to_win=self._success_metric_to_win,
             get_observations_method_as_string=self._task_manager.get_observations_method_as_string,
-            get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
+            # get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
         )
         if self._debug:
             print(user_prompt)
@@ -125,7 +125,7 @@ class Eureka:
             print(f"\n{'#' * 20} Running Eureka Iteration {iter} {'#' * 20} \n")
             # Generate the GPT reward methods
 
-            # llm_outputs = self._llm_manager.prompt(user_prompt=user_prompt, assistant_prompt=assistant_prompt)
+            llm_outputs = self._llm_manager.prompt(user_prompt=user_prompt, assistant_prompt=assistant_prompt)
             gpt_reward_method_strings = llm_outputs["reward_strings"]
             # Log the llm outputs
             for idx, gpt_reward_method_string in enumerate(gpt_reward_method_strings):
