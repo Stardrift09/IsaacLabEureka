@@ -1,0 +1,10 @@
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0 --headless
+
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0 --num_envs=20  --video --video_length=1000
+
+ssh go49lov2@cool.hpc.lrz.de
+
+--clusters=inter
+--partition=cm4_inter
+
+#TODO: Test relative path, should be fine

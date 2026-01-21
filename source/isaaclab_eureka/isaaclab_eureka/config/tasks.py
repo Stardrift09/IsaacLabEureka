@@ -24,9 +24,9 @@ TASKS_CFG = {
     "LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0": {
         "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now",
         "success_metric": (
-            "(self._cream_cheese.data.root_pos_w[:, 2] > 0.6).float().mean()"
+            "torch.exp(-((0.6 - self._cream_cheese.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
         ),
-        "success_metric_to_win": 1.0,
+        "success_metric_to_win": 0.9,
         "success_metric_tolerance": 0.02,
     },
 

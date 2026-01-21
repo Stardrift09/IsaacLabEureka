@@ -53,6 +53,7 @@ class Eureka:
 
         # Load the task description and success metric
         self._debug = True
+
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
             success_metric_string = TASKS_CFG[task].get("success_metric")
@@ -114,7 +115,7 @@ class Eureka:
         )
         if self._debug:
             print(user_prompt)
-            
+            print(self._task_manager._success_metric_string)
         # The assistant prompt is used to feed the previous LLM output back into the LLM
         assistant_prompt = None
 

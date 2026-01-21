@@ -63,6 +63,8 @@ def main(args_cli):
             with torch.inference_mode():
                 # agent stepping
                 actions = policy(obs)
+                print(actions)
+                print(actions.size())
                 # env stepping
                 obs, _, _, _ = env.step(actions)
 
@@ -138,7 +140,8 @@ def main(args_cli):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
-    parser.add_argument("--task", type=str, default="Isaac-Franka-Cabinet-Direct-v0", help="Name of the task.")
+    # parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0", help="Name of the task.")
+    parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
     parser.add_argument("--num_envs", type=int, default=20, help="Number of environments to simulate.")
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--checkpoint", type=str, default=None, help="Absolute path to model checkpoint.")

@@ -188,6 +188,7 @@ class EurekaTaskManager:
                 #     if self._debug:
                 #         print(self._done_string)
                 #         self.close()
+
             # Insert the reward function into the environment and run the training
             reward_func_string = rewards_queue.get()
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):
@@ -283,76 +284,88 @@ class EurekaTaskManager:
     def _run_training(self, framework: Literal["rsl_rl", "rl_games"] = "rsl_rl"):
         """Run the training of the task."""
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-
-        if self._rl_library == "rsl_rl":
-            from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+        if True:
+            from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
             from rsl_rl.runners import OnPolicyRunner
-
-            agent_cfg: RslRlOnPolicyRunnerCfg = load_cfg_from_registry(self._task, "rsl_rl_cfg_entry_point")
-            agent_cfg.device = self._device
-            agent_cfg.max_iterations = self._max_training_iterations
-
-            log_root_path = os.path.join("logs", "rl_runs", "rsl_rl_eureka", agent_cfg.experiment_name)
-            log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            # specify directory for logging runs: {time-stamp}_{run_name}
-            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
-            if agent_cfg.run_name:
-                log_dir += f"_{agent_cfg.run_name}"
-            self._log_dir = os.path.join(log_root_path, log_dir)
-
-            env = RslRlVecEnvWrapper(self._env)
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
-            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
-
-        elif self._rl_library == "rl_games":
-            from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-            from rl_games.common import env_configurations, vecenv
-            from rl_games.common.algo_observer import IsaacAlgoObserver
-            from rl_games.torch_runner import Runner
-
-            agent_cfg = load_cfg_from_registry(self._task, "rl_games_cfg_entry_point")
-            agent_cfg["params"]["config"]["max_epochs"] = self._max_training_iterations
-            agent_cfg["params"]["config"]["device"] = self._device
-            agent_cfg["params"]["config"]["device_name"] = self._device
-            # specify directory for logging experiments
-            log_root_path = os.path.join("logs", "rl_runs", "rl_games_eureka", agent_cfg["params"]["config"]["name"])
-            log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            # specify directory for logging runs
-            log_dir = (
-                agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-                + f"_Run-{self._idx}"
-            )
-            # set directory into agent config
-            # logging directory path: <train_dir>/<full_experiment_name>
-            agent_cfg["params"]["config"]["train_dir"] = log_root_path
-            agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
-            # Update the log directory to the tensorboard file
-            self._log_dir = os.path.join(log_root_path, log_dir, "summaries")
-            clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
-            clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
-            env = RlGamesVecEnvWrapper(self._env, self._device, clip_obs, clip_actions)
-
-            vecenv.register(
-                "IsaacRlgWrapper",
-                lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
-            )
-            env_configurations.register(
-                "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
-            )
-
-            # set number of actors into agent config
-            agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-            # create runner from rl-games
-            runner = Runner(IsaacAlgoObserver())
-            runner.load(agent_cfg)
-            # reset the agent and env
-            runner.reset()
-            # train the agent
-            runner.run({"train": True, "play": False, "sigma": None})
+            env = RslRlVecEnvWrapper(env)
+            # obtain the trained policy for inference
+            # reset environment
+            obs = env.get_observations()
+            # simulate environment
+            while self._simulation_app.is_running():
+                actions = policy(obs)
+                # env stepping
+                obs, rewards, _, _ = env.step(actions)
         else:
-            raise Exception(f"framework {framework} is not supported yet.")
+            if self._rl_library == "rsl_rl":
+                from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+                from rsl_rl.runners import OnPolicyRunner
+
+                agent_cfg: RslRlOnPolicyRunnerCfg = load_cfg_from_registry(self._task, "rsl_rl_cfg_entry_point")
+                agent_cfg.device = self._device
+                agent_cfg.max_iterations = self._max_training_iterations
+
+                log_root_path = os.path.join("logs", "rl_runs", "rsl_rl_eureka", agent_cfg.experiment_name)
+                log_root_path = os.path.abspath(log_root_path)
+                print(f"[INFO] Logging experiment in directory: {log_root_path}")
+                # specify directory for logging runs: {time-stamp}_{run_name}
+                log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
+                if agent_cfg.run_name:
+                    log_dir += f"_{agent_cfg.run_name}"
+                self._log_dir = os.path.join(log_root_path, log_dir)
+
+                env = RslRlVecEnvWrapper(self._env)
+                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
+                runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+
+            elif self._rl_library == "rl_games":
+                from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
+                from rl_games.common import env_configurations, vecenv
+                from rl_games.common.algo_observer import IsaacAlgoObserver
+                from rl_games.torch_runner import Runner
+
+                agent_cfg = load_cfg_from_registry(self._task, "rl_games_cfg_entry_point")
+                agent_cfg["params"]["config"]["max_epochs"] = self._max_training_iterations
+                agent_cfg["params"]["config"]["device"] = self._device
+                agent_cfg["params"]["config"]["device_name"] = self._device
+                # specify directory for logging experiments
+                log_root_path = os.path.join("logs", "rl_runs", "rl_games_eureka", agent_cfg["params"]["config"]["name"])
+                log_root_path = os.path.abspath(log_root_path)
+                print(f"[INFO] Logging experiment in directory: {log_root_path}")
+                # specify directory for logging runs
+                log_dir = (
+                    agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+                    + f"_Run-{self._idx}"
+                )
+                # set directory into agent config
+                # logging directory path: <train_dir>/<full_experiment_name>
+                agent_cfg["params"]["config"]["train_dir"] = log_root_path
+                agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
+                # Update the log directory to the tensorboard file
+                self._log_dir = os.path.join(log_root_path, log_dir, "summaries")
+                clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
+                clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+                env = RlGamesVecEnvWrapper(self._env, self._device, clip_obs, clip_actions)
+
+                vecenv.register(
+                    "IsaacRlgWrapper",
+                    lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+                )
+                env_configurations.register(
+                    "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
+                )
+
+                # set number of actors into agent config
+                agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+                # create runner from rl-games
+                runner = Runner(IsaacAlgoObserver())
+                runner.load(agent_cfg)
+                # reset the agent and env
+                runner.reset()
+                # train the agent
+                runner.run({"train": True, "play": False, "sigma": None})
+            else:
+                raise Exception(f"framework {framework} is not supported yet.")
 
 
 
