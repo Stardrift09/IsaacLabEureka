@@ -54,3 +54,33 @@ class MuteOutput:
     def __exit__(self, *args):
         sys.stdout = self._stdout
         sys.stderr = self._stderr
+
+
+import pickle
+def read_pkl(path):
+    debug = True
+    with open(path, "rb") as f: 
+        data = pickle.load(f)
+        if debug: 
+            print(type(data))
+            print(data.keys())
+            print(len(data["franka"])) # 50
+
+            # print(data["metadata"])
+            # {'task_name': 'libero_90_kitchen_scene2_open_the_top_drawer_of_the_cabinet',
+            #  'robot_name': 'franka', 'num_episodes': 50, 'source': 'libero',
+            #  'original_file': 'KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet_demo.hdf5'}
+
+            # print(data['franka'][0].keys()) # ['init_state', 'actions', 'states']
+            # print(data['franka'][0]["init_state"])
+            # print(data['franka'][0]["init_state"].keys())
+            # print(data['franka'][0]["init_state"]['franka']["dof_pos"])
+            # print(data['franka'][0]["init_state"]["basket"])
+            # print(data['franka'][0]["actions"])
+            print(data['franka'][0]["states"][0]["franka"])
+            # for i in range(1):
+            #     print(data['franka'][i]["init_state"]['franka']["dof_pos"])
+    return data
+if __name__ == "__main__":
+    path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
+    read_pkl(path=path)

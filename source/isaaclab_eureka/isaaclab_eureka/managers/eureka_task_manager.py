@@ -285,6 +285,7 @@ class EurekaTaskManager:
         """Run the training of the task."""
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         if True:
+
             from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
             from rsl_rl.runners import OnPolicyRunner
             env = RslRlVecEnvWrapper(env)
@@ -293,9 +294,8 @@ class EurekaTaskManager:
             obs = env.get_observations()
             # simulate environment
             while self._simulation_app.is_running():
-                actions = policy(obs)
                 # env stepping
-                obs, rewards, _, _ = env.step(actions)
+                obs, rewards, _, _ = env.step()
         else:
             if self._rl_library == "rsl_rl":
                 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
