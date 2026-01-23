@@ -1,6 +1,6 @@
 from torch.utils.tensorboard import SummaryWriter
 import torch
-import gym
+
 
 class ReplayRunner:
     def __init__(self, env, log_dir):
@@ -8,7 +8,7 @@ class ReplayRunner:
         # self.path = self.env.path
         self.writer = SummaryWriter(log_dir)
         self.episode_idx = 0
-        self.episode_reward = 0
+        self.accumulated_reward = 0
 
     def step(self,actions):
 
@@ -17,14 +17,8 @@ class ReplayRunner:
         # per-step logging
         self.writer.add_scalar("reward", reward.mean().item(), self.env.common_step_counter)
 
-        self.episode_reward += reward.mean().item()
-
-        # per-episode logging
-        if done.any():
-            self.writer.add_scalar("episode_reward", self.episode_reward, self.episode_idx)
-            self.writer.add_scalar("episode_length", self.env.common_step_counter, self.episode_idx)
-            self.episode_idx += 1
-            self.episode_reward = 0
+        self.accumulated_reward += reward.mean().item()
+        self.writer.add_scalar("accumulated_reward", self.accumulated_reward, self.env.common_step_counter)
 
 
         return obs, reward, terminated, truncated, info
@@ -47,7 +41,6 @@ if __name__ == "__main__":
     import isaaclab_tasks  # noqa: F401
     from isaaclab.envs import DirectRLEnvCfg
     from isaaclab_tasks.utils import parse_env_cfg
-
     env_cfg: DirectRLEnvCfg = parse_env_cfg(task)
     env_cfg.sim.device = device
     env = gym.make(task, cfg=env_cfg)
@@ -57,7 +50,6 @@ if __name__ == "__main__":
         print(env.actions)
     env.reset()
     while simulation_app.is_running():
-
         _, rewards, _, _, _ = replayrunner.step(env.actions)
         if env.common_step_counter >= env.max_len - 1: # only for envs with...
             print("finished replaying, exiting")

@@ -44,13 +44,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_training_iterations",
         type=int,
-        default=1500,
+        default=2000,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(
         "--feedback_subsampling",
         type=int,
-        default=10,
+        default=50,
         help="The subsampling of the metrics given as feedack to the LLM.",
     )
     parser.add_argument(
