@@ -27,7 +27,7 @@ def main(args_cli):
         feedback_subsampling=args_cli.feedback_subsampling,
         temperature=args_cli.temperature,
         gpt_model=args_cli.gpt_model,
-        replay=args_cli.replay
+        replay_task=args_cli.replay_task
     )
 
     eureka.run(max_eureka_iterations=args_cli.max_eureka_iterations)
@@ -36,7 +36,13 @@ def main(args_cli):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
     parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket", help="Name oFf the task.")
-    parser.add_argument("--replay", type=bool, default=False, help="Whether replay the task")
+    parser.add_argument("--replay", type=str, default="ReplayLivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket", help="Name oFf the replay task.")
+    parser.add_argument(
+        "--replay_traj_path",
+        type=str,
+        default="libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl",
+        help="The pkl path that points to successful demos.",
+    )
     parser.add_argument(
         "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
     )
@@ -46,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_training_iterations",
         type=int,
-        default=1500,
+        default=1000,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(

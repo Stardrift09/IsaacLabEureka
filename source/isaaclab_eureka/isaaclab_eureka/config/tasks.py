@@ -29,7 +29,24 @@ TASKS_CFG = {
         "success_metric_to_win": 0.9,
         "success_metric_tolerance": 0.02,
     },
+    
+    "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
+        "success_metric": (
+            "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+        ),
+        "success_metric_to_win": 0.9,
+        "success_metric_tolerance": 0.02,
+    },
 
+    "ReplayLivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
+        "success_metric": (
+            "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+        ),
+        "success_metric_to_win": 0.9,
+        "success_metric_tolerance": 0.02,
+    },
 
 
     "Isaac-Franka-Cabinet-Direct-v0": {

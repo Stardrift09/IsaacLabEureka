@@ -140,11 +140,11 @@ def main(args_cli):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
-    # parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0", help="Name of the task.")
-    parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
+    parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket", help="Name of the task.")
+    # parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
     parser.add_argument("--num_envs", type=int, default=20, help="Number of environments to simulate.")
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Absolute path to model checkpoint.")
+    parser.add_argument("--checkpoint", type=str, default="/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/franka_test_direct/2026-01-25_16-12-42_Run-0/model_999.pt", help="Absolute path to model checkpoint.")
     parser.add_argument(
         "--rl_library",
         type=str,

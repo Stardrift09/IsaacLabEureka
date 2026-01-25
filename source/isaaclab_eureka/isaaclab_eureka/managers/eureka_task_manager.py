@@ -69,7 +69,6 @@ class EurekaTaskManager:
         env_seed: int = 42,
         max_training_iterations: int = 100,
         success_metric_string: str = "",
-        replay_task = None
     ):
         """Initialize the task manager. Each process will create an independent training run.
 
@@ -83,7 +82,6 @@ class EurekaTaskManager:
             success_metric_string: A string that represents an expression to calculate the success metric for the task.
         """
         self._task = task
-        self._replay_task = replay_task
         self._rl_library = rl_library
         self._num_processes = num_processes
         self._device = device
@@ -92,18 +90,17 @@ class EurekaTaskManager:
         self._env_seed = env_seed
         if self._success_metric_string:
             self._success_metric_string = "extras['Eureka/success_metric'] = " + self._success_metric_string
+
         self._processes = dict()
         # Used to communicate the reward functions to the processes
         self._rewards_queues = [multiprocessing.Queue() for _ in range(self._num_processes)]
         # Used to communicate the observations method to the main process
         self._observations_queue = multiprocessing.Queue()
-        # self._dones_queue = multiprocessing.Queue()
         # Used to communicate the results of the training runs to the main process
         self._results_queue = multiprocessing.Queue()
         # Used to signal the processes to terminate
         self.termination_event = multiprocessing.Event()
 
-        self._debug = False # before the process to work properly
         for idx in range(self._num_processes):
             p = multiprocessing.Process(target=self._worker, args=(idx, self._rewards_queues[idx]))
             self._processes[idx] = p
@@ -111,15 +108,11 @@ class EurekaTaskManager:
 
         # Fetch the observations
         self._get_observations_as_string = self._observations_queue.get()
-        # self._get_dones_as_string = self._dones_queue.get()
+
     @property
     def get_observations_method_as_string(self) -> str:
         """The _get_observations method of the environment as a string."""
         return self._get_observations_as_string
-    @property
-    # def get_dones_method_as_string(self) -> str:
-    #     """The _get_observations method of the environment as a string."""
-    #     return self._get_dones_as_string
 
     def close(self):
         """Close the task manager and clean up the processes."""
@@ -170,7 +163,6 @@ class EurekaTaskManager:
             idx: The index of the worker.
             rewards_queue: The queue to receive the reward function from the main process
         """
-
         self._idx = idx
         while not self.termination_event.is_set():
             if not hasattr(self, "_env"):
@@ -180,15 +172,6 @@ class EurekaTaskManager:
                 if self._idx == 0 and not hasattr(self, "_observation_string"):
                     self._observation_string = inspect.getsource(self._env.unwrapped._get_observations)
                     self._observations_queue.put(self._observation_string)
-                    if self._debug:
-                        print(self._observation_string)
-
-                # if self._idx == 0 and not hasattr(self, "_done_string"):
-                #     self._done_string = inspect.getsource(self._env.unwrapped._get_dones)
-                #     self._dones_queue.put(self._done_string)
-                #     if self._debug:
-                #         print(self._done_string)
-                #         self.close()
 
             # Insert the reward function into the environment and run the training
             reward_func_string = rewards_queue.get()
@@ -200,7 +183,7 @@ class EurekaTaskManager:
                     with context:
                         # Run training and send result to main process
                         self._run_training()
-                    result = {"success": True, "log_dir": self._log_dir} # result is a dict with success and log_dir
+                    result = {"success": True, "log_dir": self._log_dir}
                 except Exception as e:
                     result = {"success": False, "exception": str(e)}
                     print(traceback.format_exc())
@@ -237,14 +220,6 @@ class EurekaTaskManager:
         env_cfg.sim.device = self._device
         env_cfg.seed = self._env_seed
         self._env = gym.make(self._task, cfg=env_cfg)
-
-        # create new env for replay:
-        if self._replay_task is not None:
-            env_cfg: DirectRLEnvCfg = parse_env_cfg(self._replay_task)
-            env_cfg.sim.device = self._device
-            env_cfg.seed = self._env_seed
-            self._replay_env = gym.make(self._replay_task, cfg=env_cfg)
-
 
     def _prepare_eureka_environment(self, get_rewards_method_as_string: str):
         """Prepare the environment for training with the Eureka-generated reward function.
@@ -290,63 +265,9 @@ class EurekaTaskManager:
         env._eureka_episode_sums["eureka_total_rewards"] = torch.zeros(env.num_envs, device=env.device)
         env._eureka_episode_sums["oracle_total_rewards"] = torch.zeros(env.num_envs, device=env.device)
 
-        if self._replay_task is not None:
-            replay_env = self._replay_env.unwrapped
-            namespace = {}
-            # Check if the environment has already been prepared
-            if not hasattr(replay_env, "_get_rewards_eureka"):
-                # rename the environment's original reward function to _get_rewards_oracle
-                replay_env._get_rewards_oracle = replay_env._get_rewards
-                # rename to environment's initial reset function to _reset_idx_original
-                replay_env._reset_idx_original = replay_env._reset_idx
-                # set the _get_rewards method to the template method
-                template_reward_string_with_module = TEMPLATE_REWARD_STRING.format(module_name=replay_env.__module__)
-                exec(template_reward_string_with_module, namespace)
-                setattr(replay_env, "_get_rewards", types.MethodType(namespace["_get_rewards"], replay_env))
-                # set the _reset_idx method to the template method
-                template_reset_string_with_success_metric = TEMPLATE_RESET_STRING.format(
-                    module_name=replay_env.__module__, success_metric=self._success_metric_string
-                )
-                # hack: can't enable inference with rl_games
-                if self._rl_library == "rl_games":
-                    template_reset_string_with_success_metric = template_reset_string_with_success_metric.replace(
-                        "@torch.inference_mode()", ""
-                    )
-                exec(template_reset_string_with_success_metric, namespace)
-                setattr(replay_env, "_reset_idx", types.MethodType(namespace["_reset_idx"], replay_env))
-
-            # Add the GPT generated reward function to the environment
-            get_rewards_method_as_string = f"from {replay_env.__module__} import * \nimport torch\n" + get_rewards_method_as_string
-            exec(get_rewards_method_as_string, namespace)
-            setattr(replay_env, "_get_rewards_eureka", types.MethodType(namespace["_get_rewards_eureka"], replay_env))
-
-            # Prepare the reward sum buffers
-            replay_env._eureka_episode_sums = dict()
-            replay_env._eureka_episode_sums["eureka_total_rewards"] = torch.zeros(replay_env.num_envs, device=replay_env.device)
-            replay_env._eureka_episode_sums["oracle_total_rewards"] = torch.zeros(replay_env.num_envs, device=replay_env.device)
-
-
-
     def _run_training(self, framework: Literal["rsl_rl", "rl_games"] = "rsl_rl"):
         """Run the training of the task."""
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-        if self._replay_task is not None:
-            # set up log dir 
-            log_root_path = os.path.join("logs", "replay_runs", self._replay_task)
-            log_root_path = os.path.abspath(log_root_path)
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            # specify directory for logging runs: {time-stamp}_{run_name}
-            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
-            self._replay_log_dir = os.path.join(log_root_path, log_dir)
-            # set up runner
-            from isaaclab_eureka.managers import ReplayRunner
-            replayrunner = ReplayRunner(env=self._replay_env,log_dir="logs/replayrunner_test") # TODO: log dir
-            self._replay_env.reset()
-            while self._simulation_app.is_running():
-                _, rewards, _, _, _ = replayrunner.step(self._replay_env.actions)
-                if self._replay_env.common_step_counter >= self._replay_env.max_len - 1: # only for envs with...
-                    print("finished replaying, exiting")
-                    self._replay_env.close()
 
         if self._rl_library == "rsl_rl":
             from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
@@ -418,5 +339,71 @@ class EurekaTaskManager:
         else:
             raise Exception(f"framework {framework} is not supported yet.")
 
+    def _run_replay(self):
+        
+        import torch
+        # [num_envs, step, states]
+        # first loop over, add padding, then stack.
+        episodes = self._env.data["franka"]
+        num_episodes = len(episodes)
+        sample = episodes[0]["states"][0].copy()
+        sample.pop("franka", None)
+        
+        # 1. Determine object names and ordering
+        object_names = sorted(list(sample.keys()))
+        if self.debug:
+            print(object_names)
+        object_indices = {name: i for i, name in enumerate(object_names)}
 
+        num_objects = len(object_names)
+        # 2. Compute max episode length
+        lengths = [len(ep["states"]) for ep in episodes]
+        if self.debug:
+            print(lengths)
+        max_len = max(lengths)
+        if self.debug:
+            print(f"max_len {max_len}")
+        # 3. Determine state dimensions
+        # robot
+        robot_pos_dim = len(episodes[0]["states"][0]["franka"]["pos"])      # 3
 
+        # actually I am not using this..
+        robot_rot_dim = len(episodes[0]["states"][0]["franka"]["rot"])      # 4
+        robot_dof_dim = len(episodes[0]["states"][0]["franka"]["dof_pos"])  # num_joints
+
+        # rigid objects (all share same structure)
+        one_obj = next(iter({k: v for k, v in sample.items() if k != "franka"}.values()))
+        object_pos_dim = len(one_obj["pos"])              # 3
+        object_rot_dim = len(one_obj["rot"])              # 4
+
+        # 4. Preallocate tensors
+        # robot_pos = torch.zeros((num_episodes, max_len, robot_pos_dim))
+        # robot_rot = torch.zeros((num_episodes, max_len, robot_rot_dim))
+        robot_dof = torch.zeros((num_episodes, max_len, robot_dof_dim),device=self.device,dtype=torch.float32)
+
+        object_pos = torch.zeros((num_episodes, max_len, num_objects, object_pos_dim),device=self.device,dtype=torch.float32)
+        object_rot = torch.zeros((num_episodes, max_len, num_objects, object_rot_dim),device=self.device,dtype=torch.float32)
+
+        padding_mask = torch.ones((num_episodes, max_len), dtype=torch.bool)
+
+        # 5. Fill tensors
+        for env_idx, ep in enumerate(episodes): # each episode
+            ep_len = lengths[env_idx]
+
+            for t, state in enumerate(ep["states"]):
+                # robot
+                # robot_pos[env_idx, t] = torch.tensor(state["franka"]["pos"])
+                # robot_rot[env_idx, t] = torch.tensor(state["franka"]["rot"])
+
+                dof_vals = [v[0] for v in state["franka"]["dof_pos"].values()]
+                robot_dof[env_idx, t] = torch.tensor(dof_vals)
+
+                # objects
+                for obj_idx, obj_name in enumerate(object_names):
+                    obj = state[obj_name]
+                    object_pos[env_idx, t, obj_idx] = torch.tensor(obj["pos"])
+                    object_rot[env_idx, t, obj_idx] = torch.tensor(obj["rot"])
+
+            # padding mask
+            padding_mask[env_idx, :ep_len] = False
+    

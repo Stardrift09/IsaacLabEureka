@@ -35,7 +35,7 @@ class Eureka:
         temperature: float = 1.0,
         gpt_model: str = "gpt-4",
         num_parallel_runs: int = 1,
-        replay: bool = False,
+        replay_task = None,
     ):
         """Initialize the Eureka class.
 
@@ -78,6 +78,8 @@ class Eureka:
         )
 
         print("[INFO]: Setting up the Task Manager...")
+        if self._debug:
+            print(f"replay task: {replay_task}")
         self._task_manager = EurekaTaskManager(
             task=task,
             device=device,
@@ -86,6 +88,7 @@ class Eureka:
             num_processes=self._num_processes,
             max_training_iterations=max_training_iterations,
             success_metric_string=success_metric_string,
+            replay_task=replay_task,
         )
 
         # Logging
@@ -114,9 +117,9 @@ class Eureka:
             get_observations_method_as_string=self._task_manager.get_observations_method_as_string,
             # get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
         )
-        if self._debug:
-            print(user_prompt)
-            print(self._task_manager._success_metric_string)
+        # if self._debug:
+        #     print(f"user_prompt {user_prompt}")
+        #     print(self._task_manager._success_metric_string)
         # The assistant prompt is used to feed the previous LLM output back into the LLM
         assistant_prompt = None
 
@@ -128,12 +131,15 @@ class Eureka:
             # Generate the GPT reward methods
 
             llm_outputs = self._llm_manager.prompt(user_prompt=user_prompt, assistant_prompt=assistant_prompt)
+            # if self._debug:
+            #     print(f"assistant_prompt: {assistant_prompt}")
             gpt_reward_method_strings = llm_outputs["reward_strings"]
             # Log the llm outputs
             for idx, gpt_reward_method_string in enumerate(gpt_reward_method_strings):
                 self._tensorboard_writer.add_text(f"Run_{idx}/raw_llm_output", llm_outputs["raw_outputs"][idx], iter)
             # Train the RL agent
             results = self._task_manager.train(gpt_reward_method_strings)
+
             # Evaluate the results
             iter_best_success_metric = None
             best_run_idx = 0
@@ -145,18 +151,28 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
+                    results[idx]["eureka_task_feedback"] = eureka_task_feedback
+                    results[idx]["success_metric_max"] = success_metric_max
+                    results[idx]["rewards_correlation"] = rewards_correlation
 
+                    # compute for demos, only metrics are informative, rest is not useful
+                    if "replay_log_dir" in result:
+                        replay_eureka_task_feedback = self._get_replay_task_feedback(
+                            result["replay_log_dir"], self._feedback_subsampling
+                        )
+                        print(f"replay_eureka_task_feedback {replay_eureka_task_feedback}")
+                    else:
+                        replay_eureka_task_feedback = ""
+                        print("no replay_eureka_task_feedback")
                     # Generate the user feedback prompt
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
+                        + replay_eureka_task_feedback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
                     )
-
                     # Store the results
-                    results[idx]["eureka_task_feedback"] = eureka_task_feedback
-                    results[idx]["success_metric_max"] = success_metric_max
-                    results[idx]["rewards_correlation"] = rewards_correlation
+
 
                     # Check the best performing metric, determined by the minimum distance from the win target
                     if success_metric_max is not None and (
@@ -196,6 +212,7 @@ class Eureka:
 
         self._log_final_results(best_run_results)
         # Close the task manager
+        # print("CLOSING TASK MANAGER!!!!!!!!!!!!!!!!!!!!!")
         self._task_manager.close()
 
     def _get_eureka_task_feedback(self, log_dir: str, feedback_subsampling: int) -> tuple[str, float, float]:
@@ -250,6 +267,46 @@ class Eureka:
 
         total_feed_back_string += f"\nThe desired task_score to win is: {self._success_metric_to_win:.2f}\n"
         return total_feed_back_string, success_metric_max, rewards_correlation
+
+    def _get_replay_task_feedback(self, log_dir: str, feedback_subsampling: int) -> tuple[str]:
+        """Get the feedback for the Eureka task.
+
+        Args:
+            log_dir: The directory where the tensorboard logs are stored.
+            feedback_subsampling: The subsampling of the metrics' trajectories.
+        Returns:
+            A tuple containing the feedback string, the maximum of the success metric, and the correlation between the oracle and GPT rewards.
+        """
+        # We import here because doing this before launching Kit causes GCC_12.0 errors
+        import numpy as np
+
+        data = load_tensorboard_logs(log_dir)
+        # Make a summary of each plot in the tensorboard logs
+        total_feed_back_string = "Output of the reward function for successful demonstrations:"
+        for metric_name, metric_data in data.items():
+            if "Replay/" in metric_name:
+                # Remove the first two data points as they are usually outliers
+                metric_data = metric_data[2:]
+                metric_name = metric_name.split("Replay/", 1)[-1]
+                metric_min = min(metric_data)
+                metric_max = max(metric_data)
+                metric_mean = sum(metric_data) / len(metric_data)
+                # Best metric is the one closest to the target
+                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
+                if metric_name == "success_metric":
+                    metric_name = "task_score"
+                    success_metric_max = metric_best
+                data_string = [f"{data:.2f}" for data in metric_data[::feedback_subsampling]]
+                feedback_string = (
+                    f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
+                    f" {metric_mean:.2f} \n"
+                )
+                if "Replay/success_metric" in data and metric_name == "Replay/oracle_total_rewards":
+                    # If success metric is available, we do not provide the oracle feedback
+                    feedback_string = ""
+                total_feed_back_string += feedback_string
+        return total_feed_back_string
+    
 
     def _log_iteration_results(self, iter: int, results: list):
         """Log the results of the iteration."""
