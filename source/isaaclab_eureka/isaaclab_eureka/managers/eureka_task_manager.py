@@ -178,10 +178,12 @@ class EurekaTaskManager:
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):
                 try:
                     self._prepare_eureka_environment(reward_func_string)
+
                     # Only print the output of process 0
                     context = MuteOutput() if self._idx > 0 else nullcontext()
                     with context:
                         # Run training and send result to main process
+
                         self._run_training()
                     result = {"success": True, "log_dir": self._log_dir}
                 except Exception as e:
@@ -267,8 +269,12 @@ class EurekaTaskManager:
 
     def _run_training(self, framework: Literal["rsl_rl", "rl_games"] = "rsl_rl"):
         """Run the training of the task."""
+        # replay first
+        env = self._env.unwrapped
+        env.reset()
+        env.run_replay()
+        env.reset()
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-
         if self._rl_library == "rsl_rl":
             from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
             from rsl_rl.runners import OnPolicyRunner

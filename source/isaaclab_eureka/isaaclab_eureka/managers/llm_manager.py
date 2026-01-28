@@ -33,7 +33,7 @@ class LLMManager:
         self._num_suggestions = num_suggestions
         self._temperature = temperature
         self._prompts = [{"role": "system", "content": system_prompt}]
-        self._debug = True
+        self._debug = False
 
         if "AZURE_OPENAI_API_KEY" in os.environ:
             self._client = openai.AzureOpenAI(api_version="2024-02-01")
@@ -96,7 +96,7 @@ class LLMManager:
             # --------------------------------------------------------------------------
             joint_pos = torch.nan_to_num(self._robot.data.joint_pos, nan=0.0, posinf=0.0, neginf=0.0)
             joint_vel = torch.nan_to_num(self._robot.data.joint_vel, nan=0.0, posinf=0.0, neginf=0.0)
-            cream_pos = torch.nan_to_num(self.rigid_objects["cream_cheese"].data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
+            cream_pos = torch.nan_to_num(self.rigid_objects["alphabet_soup"].data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
             cream_height = cream_pos[:, 2]
 
             # Robot grasp position (assumed to be precomputed each step in env)

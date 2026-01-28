@@ -31,7 +31,7 @@ TASKS_CFG = {
     },
     
     "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
+        "description": "control the franka arm to pick up the alphabet soup(target object)",
         "success_metric": (
             "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
         ),

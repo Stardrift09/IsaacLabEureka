@@ -116,7 +116,7 @@ class Eureka:
         )
         if self._debug:
             print(user_prompt)
-            print(self._task_manager._success_metric_string)
+            # print(self._task_manager._success_metric_string)
         # The assistant prompt is used to feed the previous LLM output back into the LLM
         assistant_prompt = None
 
@@ -145,14 +145,20 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
-
+                    replay_log_dir = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/replay_test"
+                    replay_eureka_task_feedback = self._get_replay_task_feedback(
+                        replay_log_dir, self._feedback_subsampling
+                    )
+                    
                     # Generate the user feedback prompt
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
+                        + replay_eureka_task_feedback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
                     )
-
+                    if self._debug:
+                        print(replay_eureka_task_feedback)
                     # Store the results
                     results[idx]["eureka_task_feedback"] = eureka_task_feedback
                     results[idx]["success_metric_max"] = success_metric_max
@@ -291,3 +297,43 @@ class Eureka:
 
         with open(f"{self._log_dir}/eureka_final_result.txt", "w") as f:
             f.write(output)
+
+
+    def _get_replay_task_feedback(self, log_dir: str, feedback_subsampling: int) -> tuple[str]:
+        """Get the feedback for the Eureka task.
+
+        Args:
+            log_dir: The directory where the tensorboard logs are stored.
+            feedback_subsampling: The subsampling of the metrics' trajectories.
+        Returns:
+            A tuple containing the feedback string, the maximum of the success metric, and the correlation between the oracle and GPT rewards.
+        """
+        # We import here because doing this before launching Kit causes GCC_12.0 errors
+        import numpy as np
+
+        data = load_tensorboard_logs(log_dir)
+        # Make a summary of each plot in the tensorboard logs
+        total_feed_back_string = "Output of the reward function on some successful demonstrations:"
+        for metric_name, metric_data in data.items():
+            if "Replay/" in metric_name:
+                # Remove the first two data points as they are usually outliers
+                metric_data = metric_data[2:]
+                metric_name = metric_name.split("Replay/", 1)[-1]
+                metric_min = min(metric_data)
+                metric_max = max(metric_data)
+                metric_mean = sum(metric_data) / len(metric_data)
+                # Best metric is the one closest to the target
+                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
+                if metric_name == "success_metric":
+                    metric_name = "task_score"
+                    success_metric_max = metric_best
+                data_string = [f"{data:.2f}" for data in metric_data[::feedback_subsampling]]
+                feedback_string = (
+                    f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
+                    f" {metric_mean:.2f} \n"
+                )
+                if "Replay/success_metric" in data and metric_name == "Replay/oracle_total_rewards":
+                    # If success metric is available, we do not provide the oracle feedback
+                    feedback_string = ""
+                total_feed_back_string += feedback_string
+        return total_feed_back_string

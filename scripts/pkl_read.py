@@ -11,6 +11,6 @@ with open("libero/trajs/libero90/libero_90_kitchen_scene2_open_the_top_drawer_of
     #  'original_file': 'KITCHEN_SCENE2_open_the_top_drawer_of_the_cabinet_demo.hdf5'}
 
     print(data['franka'][0].keys())
-    print(data['franka'][0]["init_state"])
-    # print(data['franka'][0]["actions"])
+    # print(data['franka'][0]["init_state"])
+    # print(data['franka'][0]["actions"][0])
     # print(data['franka'][0]["states"])

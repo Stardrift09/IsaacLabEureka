@@ -119,7 +119,7 @@ class EurekaTaskManager:
         # Used to signal the processes to terminate
         self.termination_event = multiprocessing.Event()
         self.error_flag = False
-        self._debug = True # before the process to work properly
+        self._debug = False # before the process to work properly
         for idx in range(self._num_processes):
             p = multiprocessing.Process(target=self._worker, args=(idx, self._rewards_queues[idx]))
             self._processes[idx] = p
