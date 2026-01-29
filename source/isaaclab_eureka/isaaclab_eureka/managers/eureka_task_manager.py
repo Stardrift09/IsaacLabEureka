@@ -188,6 +188,11 @@ class EurekaTaskManager:
                     result = {"success": True, "log_dir": self._log_dir}
                 except Exception as e:
                     result = {"success": False, "exception": str(e)}
+                    # try to stop black screen..
+                    # e_str = str(e)
+                    # if str(e).startswith("CUDA error"):
+                    #     import os
+                    #     os.system("sudo reboot")
                     print(traceback.format_exc())
             else:
                 result = {
