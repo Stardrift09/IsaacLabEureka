@@ -57,7 +57,7 @@ class Eureka:
 
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
-            success_metric_string = TASKS_CFG[task].get("success_metric")
+            self._success_metric_string = TASKS_CFG[task].get("success_metric")
             self._success_metric_to_win = TASKS_CFG[task].get("success_metric_to_win")
             self._success_metric_tolerance = TASKS_CFG[task].get("success_metric_tolerance")
         else:
@@ -85,7 +85,7 @@ class Eureka:
             rl_library=rl_library,
             num_processes=self._num_processes,
             max_training_iterations=max_training_iterations,
-            success_metric_string=success_metric_string,
+            success_metric_string=self._success_metric_string,
         )
 
         # Logging
@@ -110,6 +110,7 @@ class Eureka:
         # Initial prompts
         user_prompt = DIRECT_WORKFLOW_TASK_PROMPT.format(
             task_description=self._task_description,
+            success_metric = self._success_metric_string,
             success_metric_to_win=self._success_metric_to_win,
             get_observations_method_as_string=self._task_manager.get_observations_method_as_string,
             # get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
@@ -145,7 +146,7 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
-                    replay_log_dir = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/replay_test"
+                    replay_log_dir = "/home/admin_01/workspace_eureka/IsaacLabEureka/logs/replay_test"
                     replay_eureka_task_feedback = self._get_replay_task_feedback(
                         replay_log_dir, self._feedback_subsampling
                     )
@@ -157,8 +158,7 @@ class Eureka:
                         + replay_eureka_task_feedback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
                     )
-                    if self._debug:
-                        print(replay_eureka_task_feedback)
+                    print(user_feedback_prompt)
                     # Store the results
                     results[idx]["eureka_task_feedback"] = eureka_task_feedback
                     results[idx]["success_metric_max"] = success_metric_max
@@ -313,7 +313,7 @@ class Eureka:
 
         data = load_tensorboard_logs(log_dir)
         # Make a summary of each plot in the tensorboard logs
-        total_feed_back_string = "Output of the reward function on some successful demonstrations:"
+        total_feed_back_string = "We provide you the output of the reward function on some successful demonstrations as follows, and you can utilize it for better reward generation"
         for metric_name, metric_data in data.items():
             if "Replay/" in metric_name:
                 # Remove the first two data points as they are usually outliers

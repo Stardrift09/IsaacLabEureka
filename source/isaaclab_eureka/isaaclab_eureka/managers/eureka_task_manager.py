@@ -276,9 +276,9 @@ class EurekaTaskManager:
         """Run the training of the task."""
         # replay first
         env = self._env.unwrapped
-        env.reset()
+        # env.reset()
         env.run_replay()
-        env.reset()
+        # env.reset()
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         if self._rl_library == "rsl_rl":
             from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
