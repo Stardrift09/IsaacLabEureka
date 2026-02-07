@@ -146,9 +146,8 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
-                    replay_log_dir = "/home/admin_01/workspace_eureka/IsaacLabEureka/logs/replay_test"
                     replay_eureka_task_feedback = self._get_replay_task_feedback(
-                        replay_log_dir, self._feedback_subsampling
+                        result["log_dir"], self._feedback_subsampling
                     )
                     
                     # Generate the user feedback prompt

@@ -61,7 +61,7 @@ if __name__ == "__main__":
         default=1,
         help="Controls the randomness of the GPT output (0 is deterministic, 1 is highly diverse).",
     )
-    parser.add_argument("--gpt_model", type=str, default="gpt-5.1", help="The GPT model to use.")
+    parser.add_argument("--gpt_model", type=str, default="gpt-5.2", help="The GPT model to use.")
     parser.add_argument(
         "--rl_library",
         type=str,

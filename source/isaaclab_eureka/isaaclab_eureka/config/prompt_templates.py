@@ -13,6 +13,7 @@ def _get_rewards_eureka(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     ...
     return reward, individual_rewards_dict
 
+Your individual_rewards_dict should keys not start with Eureka/ as that will be handled by code.
 Make sure any new tensor or variable you introduce is on the same device as self.device.
 The output of the reward function should consist of two items:
     (1) the total reward, which has a dimension of (self.num_envs,) and is a torch.Tensor,

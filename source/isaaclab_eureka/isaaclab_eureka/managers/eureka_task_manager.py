@@ -88,8 +88,8 @@ class EurekaTaskManager:
         self._max_training_iterations = max_training_iterations
         self._success_metric_string = success_metric_string
         self._env_seed = env_seed
-        if self._success_metric_string:
-            self._success_metric_string = "extras['Eureka/success_metric'] = " + self._success_metric_string
+        # if self._success_metric_string:
+        #     self._success_metric_string = "extras['Eureka/success_metric'] = " + self._success_metric_string
 
         self._processes = dict()
         # Used to communicate the reward functions to the processes
@@ -254,6 +254,7 @@ class EurekaTaskManager:
             template_reset_string_with_success_metric = TEMPLATE_RESET_STRING.format(
                 module_name=env.__module__, success_metric=self._success_metric_string
             )
+            print(template_reset_string_with_success_metric)
             # hack: can't enable inference with rl_games
             if self._rl_library == "rl_games":
                 template_reset_string_with_success_metric = template_reset_string_with_success_metric.replace(
@@ -276,9 +277,7 @@ class EurekaTaskManager:
         """Run the training of the task."""
         # replay first
         env = self._env.unwrapped
-        # env.reset()
-        env.run_replay()
-        # env.reset()
+
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
         if self._rl_library == "rsl_rl":
             from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
@@ -291,12 +290,13 @@ class EurekaTaskManager:
             log_root_path = os.path.join("logs", "rl_runs", "rsl_rl_eureka", agent_cfg.experiment_name)
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
+
             # specify directory for logging runs: {time-stamp}_{run_name}
             log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             self._log_dir = os.path.join(log_root_path, log_dir)
-
+            env.run_replay(self._log_dir)
             env = RslRlVecEnvWrapper(self._env)
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
@@ -326,6 +326,7 @@ class EurekaTaskManager:
             agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
             # Update the log directory to the tensorboard file
             self._log_dir = os.path.join(log_root_path, log_dir, "summaries")
+            env.run_replay(self._log_dir)
             clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
             clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
             env = RlGamesVecEnvWrapper(self._env, self._device, clip_obs, clip_actions)

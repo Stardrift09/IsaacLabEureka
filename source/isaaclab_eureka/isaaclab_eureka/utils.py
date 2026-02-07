@@ -81,6 +81,14 @@ def read_pkl(path):
             # for i in range(1):
             #     print(data['franka'][i]["init_state"]['franka']["dof_pos"])
     return data
+
+
+def eureka_root_dir():
+    import os
+    return os.environ.get("EUREKA")
+
+
 if __name__ == "__main__":
-    path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
-    read_pkl(path=path)
+    # path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
+    # read_pkl(path=path)
+    print(eureka_root_dir())
