@@ -38,6 +38,7 @@ def get_freest_gpu():
         return None
     # Sort GPUs by memory usage
     gpus.sort(key=lambda gpu: gpu.memoryUsed)
+    print([gpu.id for gpu in gpus])
     return gpus[0].id
 
 
@@ -91,4 +92,5 @@ def eureka_root_dir():
 if __name__ == "__main__":
     # path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
     # read_pkl(path=path)
-    print(eureka_root_dir())
+    # print(eureka_root_dir())
+    get_freest_gpu()

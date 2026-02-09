@@ -116,194 +116,188 @@ class LLMManager:
                 """
             elif task == "alphabet_soup":
                 constant_reward_string = """def _get_rewards_eureka(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-                    import torch
+    import torch
 
-                    device = self.device
-                    eps: float = 1e-6
+    device = self.device
+    eps: float = 1e-6
 
-                    # ---------------------------------------------------------------------
-                    # Core issue from logs:
-                    # - Components that should be in [0,1] are being tracked at ~30-50, which
-                    #   indicates you are logging *episode sums* (not per-step means). So we
-                    #   must keep per-step rewards small and very well-shaped.
-                    # - dist in training hovers ~3-6m equivalent (very far) while r_reach etc.
-                    #   still accumulate large episode sums -> agent can get reward without
-                    #   actually reaching and grasping.
-                    # - Absolute heights appear badly offset (obj_h_env ~2-3, grip_h_env ~4-5).
-                    #   Using absolute height thresholds is brittle. Use *height change* (delta)
-                    #   as primary lift signal, plus a weak absolute clamp.
-                    # - No gripper state available -> infer "grasp/hold" by: near + object
-                    #   moving up while end-effector remains near (proxy).
-                    # ---------------------------------------------------------------------
+    # ----------------------------
+    # Fetch + sanitize key signals
+    # ----------------------------
+    obj_pos_w = torch.nan_to_num(self.target_object.data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
+    site_pos_w = torch.nan_to_num(self.target_site.data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
+    hand_pos_w = torch.nan_to_num(self.robot_grasp_pos, nan=0.0, posinf=0.0, neginf=0.0)
 
-                    # ----------------------------
-                    # Sanitize required state
-                    # ----------------------------
-                    grasp_pos_w = torch.nan_to_num(self.robot_grasp_pos, nan=0.0, posinf=0.0, neginf=0.0)
-                    obj_pos_w = torch.nan_to_num(self.target_object.data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
-                    env_origins = torch.nan_to_num(self.scene.env_origins, nan=0.0, posinf=0.0, neginf=0.0)
+    obj_xy = obj_pos_w[:, :2]
+    site_xy = site_pos_w[:, :2]
+    hand_xy = hand_pos_w[:, :2]
 
-                    grasp_pos_env = grasp_pos_w - env_origins
-                    obj_pos_env = obj_pos_w - env_origins
+    obj_z = obj_pos_w[:, 2]
+    hand_z = hand_pos_w[:, 2]
 
-                    to_obj_w = torch.nan_to_num(obj_pos_w - grasp_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
-                    dist = torch.linalg.norm(to_obj_w, dim=-1)
-                    dist = torch.nan_to_num(dist, nan=10.0, posinf=10.0, neginf=10.0)
-                    dist = torch.clamp(dist, 0.0, 5.0)
+    # Relative vectors (already computed in obs path, but re-sanitize for safety)
+    t2h = torch.nan_to_num(self.target_to_hand_pos, nan=0.0, posinf=0.0, neginf=0.0)
+    s2t = torch.nan_to_num(self.site_to_target_pos, nan=0.0, posinf=0.0, neginf=0.0)
 
-                    obj_h = torch.nan_to_num(obj_pos_env[:, 2], nan=0.0, posinf=0.0, neginf=0.0)
-                    grip_h = torch.nan_to_num(grasp_pos_env[:, 2], nan=0.0, posinf=0.0, neginf=0.0)
-                    obj_h = torch.clamp(obj_h, -2.0, 20.0)
-                    grip_h = torch.clamp(grip_h, -2.0, 20.0)
+    # Distances
+    d_hand = torch.linalg.norm(t2h, dim=-1)
+    d_hand_xy = torch.linalg.norm(t2h[:, :2], dim=-1)
+    d_site_xy = torch.linalg.norm(s2t[:, :2], dim=-1)
 
-                    # Proxy for motion smoothness
-                    joint_vel = torch.nan_to_num(self._robot.data.joint_vel, nan=0.0, posinf=0.0, neginf=0.0)
-                    vel_l2 = torch.linalg.norm(joint_vel, dim=-1)
-                    vel_l2 = torch.nan_to_num(vel_l2, nan=0.0, posinf=100.0, neginf=0.0)
-                    vel_l2 = torch.clamp(vel_l2, 0.0, 100.0)
+    # Orientation "pointing down" proxy using provided self.quat (quat = z_quat * q_hand_inv)
+    # Desired: identity -> quat close to [0,0,0,1]
+    quat_err = torch.nan_to_num(self.quat, nan=0.0, posinf=0.0, neginf=0.0)
+    # Scalar part close to 1 means close to desired
+    quat_w = torch.clamp(quat_err[:, 3], -1.0, 1.0)
+    quat_v_norm = torch.linalg.norm(quat_err[:, :3], dim=-1)
 
-                    # ----------------------------
-                    # Height delta (robust lift signal)
-                    # ----------------------------
-                    # Maintain an EMA-like "initial/table" reference without assuming true table height.
-                    # We update a per-env baseline that slowly follows the object's height when the gripper is far
-                    # (i.e., likely not grasped), so lifting while near produces a positive delta.
-                    if not hasattr(self, "_obj_h_ref_eureka"):
-                        self._obj_h_ref_eureka = obj_h.clone()
-                    else:
-                        self._obj_h_ref_eureka = torch.nan_to_num(self._obj_h_ref_eureka, nan=0.0, posinf=0.0, neginf=0.0)
-                        self._obj_h_ref_eureka = torch.clamp(self._obj_h_ref_eureka, -2.0, 20.0)
+    # ----------------------------
+    # Success metric (as provided)
+    # ----------------------------
+    low_enough = obj_z < 0.1
+    dist2 = ((obj_xy - site_xy) ** 2).sum(dim=-1)
+    inside_site = dist2 < (float(self.target_site_radius) ** 2)
 
-                    # Far gate: when far, allow reference to track object (prevents drift)
-                    far_for_ref: float = 0.20
-                    ref_track_rate: float = 0.02  # slow tracking for stability
-                    far_mask = (dist > far_for_ref).to(dtype=torch.float32, device=device)
-                    self._obj_h_ref_eureka = self._obj_h_ref_eureka + ref_track_rate * far_mask * (obj_h - self._obj_h_ref_eureka)
+    # ----------------------------
+    # Shaping components
+    # ----------------------------
+    # 1) Approach object with hand (coarse + fine)
+    temp_hand_coarse: float = 0.25
+    temp_hand_fine: float = 0.07
+    r_hand_coarse = torch.exp(-torch.clamp(d_hand / temp_hand_coarse, 0.0, 10.0))
+    r_hand_fine = torch.exp(-torch.clamp(d_hand / temp_hand_fine, 0.0, 10.0))
 
-                    # On reset-like situations (object height NaN/inf already handled), clamp again
-                    self._obj_h_ref_eureka = torch.clamp(torch.nan_to_num(self._obj_h_ref_eureka, nan=0.0), -2.0, 20.0)
+    # 2) Encourage approaching from above (reduces pushing): hand above object and small XY offset
+    #    Smooth gating: prefer hand_z >= obj_z + margin, while still allowing recovery.
+    above_margin: float = 0.03
+    temp_above: float = 0.03
+    above_score = torch.sigmoid(torch.clamp((hand_z - (obj_z + above_margin)) / (temp_above + eps), -10.0, 10.0))
 
-                    lift_delta = obj_h - self._obj_h_ref_eureka
-                    lift_delta = torch.nan_to_num(lift_delta, nan=0.0, posinf=0.0, neginf=0.0)
-                    lift_delta = torch.clamp(lift_delta, -1.0, 5.0)
+    temp_xy_align: float = 0.06
+    r_xy_align = torch.exp(-torch.clamp(d_hand_xy / temp_xy_align, 0.0, 10.0))
 
-                    # ----------------------------
-                    # Reward components (all per-step bounded)
-                    # ----------------------------
+    r_approach_from_above = above_score * r_xy_align
 
-                    # (1) Reach: dense shaping over a wider range (training dist ~3-6)
-                    reach_temp: float = 0.60
-                    r_reach = torch.exp(-dist / (reach_temp + eps))
-                    r_reach = torch.clamp(r_reach, 0.0, 1.0)
+    # 3) Orientation alignment (point down) via quat closeness to identity
+    temp_quat_w: float = 0.15
+    temp_quat_v: float = 0.30
+    r_quat_w = torch.exp(-torch.clamp((1.0 - quat_w) / (temp_quat_w + eps), 0.0, 10.0))
+    r_quat_v = torch.exp(-torch.clamp(quat_v_norm / (temp_quat_v + eps), 0.0, 10.0))
+    r_orientation = 0.5 * (r_quat_w + r_quat_v)
 
-                    # (2) Very near gate (for grasp/lift shaping)
-                    near_temp: float = 0.08
-                    near_gate = torch.exp(-0.5 * (dist / (near_temp + eps)) ** 2)
-                    near_gate = torch.clamp(near_gate, 0.0, 1.0)
+    # 4) "Don't push away" proxy: reward keeping object close to its initial basket line? (not available)
+    #    Instead: reward minimizing object XY speed if available, else use gentle penalty for being far from site
+    #    (this discourages pushing it away from the basket area during manipulation).
+    if hasattr(self.target_object.data, "root_lin_vel_w"):
+        obj_lin_vel_w = torch.nan_to_num(self.target_object.data.root_lin_vel_w, nan=0.0, posinf=0.0, neginf=0.0)
+        obj_speed_xy = torch.linalg.norm(obj_lin_vel_w[:, :2], dim=-1)
+        temp_speed_xy: float = 0.6
+        r_low_obj_xy_speed = torch.exp(-torch.clamp(obj_speed_xy / (temp_speed_xy + eps), 0.0, 10.0))
+    else:
+        r_low_obj_xy_speed = torch.ones((self.num_envs,), device=device)
 
-                    # (3) Encourage gripper to be slightly above object when approaching (reduces premature closing)
-                    dz = torch.abs(grip_h - obj_h)
-                    dz = torch.nan_to_num(dz, nan=5.0, posinf=5.0, neginf=5.0)
-                    dz = torch.clamp(dz, 0.0, 5.0)
-                    align_temp: float = 0.15
-                    r_align_z = torch.exp(-0.5 * (dz / (align_temp + eps)) ** 2)
-                    r_align_z = torch.clamp(r_align_z, 0.0, 1.0)
+    # 5) Bring object over basket in XY (for dropping)
+    temp_site_xy: float = 0.10
+    r_site_xy = torch.exp(-torch.clamp(d_site_xy / temp_site_xy, 0.0, 10.0))
 
-                    # (4) Close-hold proxy: only reward being extremely close when already near
-                    close_temp: float = 0.03
-                    r_close = torch.exp(-0.5 * (dist / (close_temp + eps)) ** 2)
-                    r_close = torch.clamp(r_close, 0.0, 1.0)
-                    r_close_when_near = near_gate * r_close
+    # 6) Progression: prefer first grasp/close, then move towards site, then drop low inside.
+    #    Use smooth gates based on hand-object distance.
+    grasp_close_thresh: float = 0.06
+    temp_grasp_gate: float = 0.02
+    grasp_gate = torch.sigmoid(torch.clamp((grasp_close_thresh - d_hand) / (temp_grasp_gate + eps), -10.0, 10.0))
 
-                    # (5) Lift via delta-height: only matters if near (proxy for grasping)
-                    # Scale: 0 at <=0, saturate around ~8cm lift.
-                    lift_scale: float = 0.08
-                    lift_prog = torch.clamp(lift_delta / (lift_scale + eps), 0.0, 2.0)
-                    lift_shape_temp: float = 0.50
-                    r_lift = 1.0 - torch.exp(-lift_prog / lift_shape_temp)
-                    r_lift = torch.clamp(r_lift, 0.0, 1.0)
-                    r_lift = near_gate * r_lift
+    # While not yet "grasped": focus on approach + orientation + no-push
+    r_pregrasp = 0.55 * r_hand_coarse + 0.25 * r_approach_from_above + 0.20 * r_orientation
+    r_pregrasp = r_pregrasp * (0.7 + 0.3 * r_low_obj_xy_speed)
 
-                    # (6) Hold: reward keeping near while lifted (stabilizes grasp rather than throwing)
-                    hold_temp: float = 0.10
-                    hold_gate = torch.exp(-0.5 * (dist / (hold_temp + eps)) ** 2)
-                    hold_gate = torch.clamp(hold_gate, 0.0, 1.0)
-                    # "Lifted" boolean proxy from delta height (>=5cm)
-                    lifted = (lift_delta > 0.05).to(dtype=torch.float32, device=device)
-                    r_hold = lifted * hold_gate
+    # After close: focus on moving object to site XY, still keep hand near to maintain control
+    r_transport = 0.55 * r_site_xy + 0.25 * r_hand_fine + 0.20 * r_low_obj_xy_speed
 
-                    # (7) Success (sparse): require near + sufficient lift_delta.
-                    # Keep sparse bonus moderate to avoid reward hacking via constant terms.
-                    success = (dist < 0.05) & (lift_delta > 0.10)
-                    r_success = success.to(dtype=torch.float32, device=device)
-                    success_1 = (dist < 0.05) & (lift_delta > 0.2)
-                    r_success_1 = success_1.to(dtype=torch.float32, device=device)
-                    success_2 = (dist < 0.05) & (lift_delta > 0.3)
-                    r_success_2 = success_2.to(dtype=torch.float32, device=device)
-                    success_3 = (dist < 0.05) & (lift_delta > 0.4)
-                    r_success_3 = success_3.to(dtype=torch.float32, device=device)
-                    # ----------------------------
-                    # Penalties (small, bounded)
-                    # ----------------------------
-                    vel_pen_temp: float = 6.0
-                    p_vel = 1.0 - torch.exp(-vel_l2 / (vel_pen_temp + eps))
-                    p_vel = torch.clamp(p_vel, 0.0, 1.0)
+    # Combine via gate
+    r_shaped = (1.0 - grasp_gate) * r_pregrasp + grasp_gate * r_transport
 
-                    # Penalize being far to prevent policies that ignore the object and still get align reward
-                    far_margin: float = 0.25
-                    far_pen_temp: float = 0.50
-                    p_far = 1.0 - torch.exp(-torch.clamp(dist - far_margin, min=0.0) / (far_pen_temp + eps))
-                    p_far = torch.clamp(p_far, 0.0, 1.0)
+    # 7) Terminal-like bonus when success condition met (dense but strong)
+    #    Success is: inside site AND low enough (<0.1)
+    success = inside_site & low_enough
+    r_success = success.float()
 
-                    # ----------------------------
-                    # Combine: emphasize actual progress (reach -> close -> lift -> hold -> success)
-                    # Keep per-step total typically in ~[0, 3].
-                    # ----------------------------
-                    w_reach: float = 0.35
-                    w_align: float = 0.15
-                    w_close: float = 0.25
-                    w_lift: float = 0.80
-                    w_hold: float = 0.30
-                    w_success: float = 2.00
-                    w_vel: float = 0.01
-                    w_far: float = 0.05
+    # Additional "near success": inside site and getting low (smooth)
+    temp_low: float = 0.05
+    low_score = torch.exp(-torch.clamp(torch.relu(obj_z - 0.1) / (temp_low + eps), 0.0, 10.0))
+    r_near_success = r_site_xy * low_score
 
-                    reward = (
-                        w_reach * r_reach
-                        + w_align * (r_align_z * (0.2 + 0.8 * r_reach))  # alignment matters more when reaching
-                        + w_close * r_close_when_near
-                        + w_lift * r_lift
-                        + w_hold * r_hold
-                        + w_success * r_success
-                        + w_success * r_success_1
-                        + w_success * r_success_2
-                        + w_success * r_success_3
-                        - w_vel * p_vel
-                        - w_far * p_far
-                    )
+    # ----------------------------
+    # Weights + total reward
+    # ----------------------------
+    w_shaped: float = 1.0
+    w_near_success: float = 1.0
+    w_success: float = 6.0
 
-                    reward = torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0)
-                    reward = torch.clamp(reward, -1.0, 4.0)
-                    assert torch.isfinite(reward).all(), "Non-finite reward encountered."
+    reward = w_shaped * r_shaped + w_near_success * r_near_success + w_success * r_success
 
-                    individual = {
-                        "r_reach": r_reach,
-                        "r_align_z": r_align_z,
-                        "near_gate": near_gate,
-                        "r_close_when_near": r_close_when_near,
-                        "r_lift": r_lift,
-                        "r_hold": r_hold,
-                        "r_success": r_success,
-                        "p_vel": p_vel,
-                        "p_far": p_far,
-                        "dist": dist,
-                        "obj_h_env": obj_h,
-                        "grip_h_env": grip_h,
-                        "dz": dz,
-                        "obj_h_ref": self._obj_h_ref_eureka,
-                        "lift_delta": lift_delta,
-                    }
-                    return reward, individual
+    # Mild regularization: penalize extreme joint velocities if available
+    if hasattr(self, "_robot") and hasattr(self._robot, "data") and hasattr(self._robot.data, "joint_vel"):
+        jvel = torch.nan_to_num(self._robot.data.joint_vel, nan=0.0, posinf=0.0, neginf=0.0)
+        # keep small to avoid destabilizing exploration
+        vel_pen = torch.mean(torch.clamp(jvel * jvel, 0.0, 100.0), dim=-1)
+        reward = reward - 0.01 * vel_pen
+    else:
+        vel_pen = torch.zeros((self.num_envs,), device=device)
+
+    # Final safety clamps
+    reward = torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0)
+    reward = torch.clamp(reward, -10.0, 10.0)
+
+    # Assert finite for training stability
+    if not torch.isfinite(reward).all():
+        reward = torch.where(torch.isfinite(reward), reward, torch.zeros_like(reward))
+
+    # Assert finite for training stability
+    if not torch.isfinite(reward).all():
+        reward = torch.where(torch.isfinite(reward), reward, torch.zeros_like(reward))
+
+    # reward = r_orientation
+    # individual_rewards = {
+    #     # "hand_coarse": r_hand_coarse,
+    #     # "hand_fine": r_hand_fine,
+    #     # "approach_from_above": r_approach_from_above,
+    #     "orientation": r_orientation,
+    #     # "low_obj_xy_speed": r_low_obj_xy_speed,
+    #     # "site_xy": r_site_xy,
+    #     # "grasp_gate": grasp_gate,
+    #     # "shaped": r_shaped,
+    #     # "near_success": r_near_success,
+    #     # "success": r_success,
+    #     # "vel_pen": vel_pen,
+    # }
+
+    # hand_quat = self._robot.data.body_quat_w[:, self.hand_link_idx]
+    # q_hand_inv = quat_inv(hand_quat)
+    # quat_1=torch.tensor([0, 0, 0, 1],device = self.device)
+    # z_quat = quat_1.repeat(self.num_envs,1)
+    # quat = quat_mul(z_quat,q_hand_inv)
+    # reward = hand_quat[:,1]
+
+    # z_local = torch.tensor([0, 0, 1], device=self.device,dtype=torch.float)
+    # z_local = z_local.repeat(self.num_envs, 1)
+    # z_world = quat_apply(hand_quat, z_local)
+    # reward = -z_world[:,-1]
+
+    individual_rewards = {
+        "quat": reward
+        "reach": torch.nan_to_num(r_reach),
+        "upright": torch.nan_to_num(r_upright),
+        "lift": torch.nan_to_num(r_lift),
+        "site_xy": torch.nan_to_num(r_site_xy),
+        "place_shaped": torch.nan_to_num(r_place_shaped),
+        "cautious": torch.nan_to_num(r_cautious),
+        "stage_mix": torch.nan_to_num(r_staged),
+        "success_bonus": torch.nan_to_num(r_success),
+        "tilt_pen": torch.nan_to_num(r_tilt_pen),
+        "success_metric": success,  # per-env success indicator
+    }
+    return reward, individual_rewards
+
                 """
             else:
                 raise NotImplementedError("Wrong task name in llm manager!")
@@ -324,3 +318,192 @@ class LLMManager:
             raw_outputs = [response.message.content for response in responses.choices]
             reward_strings = [self.extract_code_from_response(raw_output) for raw_output in raw_outputs]
         return {"reward_strings": reward_strings, "raw_outputs": raw_outputs}
+
+
+test_reward_string = """def _get_rewards_eureka(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    import torch
+
+    device = self.device
+    eps: float = 1e-6
+
+    # -------------------------
+    # Fetch & sanitize signals
+    # -------------------------
+    obj_pos = torch.nan_to_num(self.target_object.data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
+    obj_quat = torch.nan_to_num(self.target_object.data.root_quat_w, nan=0.0, posinf=0.0, neginf=0.0)
+    site_pos = torch.nan_to_num(self.target_site.data.root_pos_w, nan=0.0, posinf=0.0, neginf=0.0)
+
+    hand_pos = torch.nan_to_num(self.robot_grasp_pos, nan=0.0, posinf=0.0, neginf=0.0)
+    # hand_rot available in env: self.robot_grasp_rot (used in obs)
+    hand_rot = torch.nan_to_num(self.robot_grasp_rot, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Distances
+    to_hand = obj_pos - hand_pos
+    dist_hand = torch.linalg.norm(to_hand, dim=-1)
+
+    obj_xy = obj_pos[:, :2]
+    site_xy = site_pos[:, :2]
+    dist_site_xy = torch.linalg.norm(obj_xy - site_xy, dim=-1)
+    obj_z = obj_pos[:, 2]
+
+    # Success metric components (match description)
+    low_enough = obj_z < 0.1
+    inside_site = dist_site_xy < float(self.target_site_radius)
+
+    # -------------------------
+    # Orientation: keep upright
+    # -------------------------
+    # For upright, reward alignment of object local z-axis with world z-axis.
+    # Convert quat (w,x,y,z) to z-axis in world:
+    # z_axis_world = R(q) * [0,0,1]
+    # For quaternion q = (w, x, y, z):
+    # z_axis = -[2(xz + wy), 2(yz - wx), 1 - 2(x^2 + y^2)] # my change for correct
+    w = obj_quat[:, 0]
+    x = obj_quat[:, 1]
+    y = obj_quat[:, 2]
+    z = obj_quat[:, 3]
+    z_axis_world = torch.stack(
+        (2.0 * (x * z + w * y), 2.0 * (y * z - w * x), 1.0 - 2.0 * (x * x + y * y)),
+        dim=-1,
+    )
+    z_axis_world = torch.nan_to_num(z_axis_world, nan=0.0, posinf=0.0, neginf=0.0)
+    upright_cos = torch.clamp(z_axis_world[:, 2], -1.0, 1.0)  # dot with world z
+    # map [-1,1] -> [0,1]
+    upright_score = 0.5 * (upright_cos + 1.0)
+
+    # -------------------------
+    # Stage detection (simple)
+    # -------------------------
+    # Stage 0: reach object
+    # Stage 1: lift and keep upright
+    # Stage 2: move above basket/site while keeping upright
+    # Stage 3: place into basket (inside_site & low_enough)
+    reach_thresh: float = 0.06
+    lift_z: float = 0.14  # above table-ish; encourages picking up before moving
+    above_site_xy_thresh: float = float(self.target_site_radius) * 1.5 + 0.02
+
+    reached = dist_hand < reach_thresh
+    lifted = obj_z > lift_z
+    above_site_xy = dist_site_xy < above_site_xy_thresh
+    placed = inside_site & low_enough
+
+    # Use floats for blending/gating
+    reached_f = reached.float()
+    lifted_f = lifted.float()
+    above_site_xy_f = above_site_xy.float()
+    placed_f = placed.float()
+
+    # Stage weights (soft step-by-step curriculum)
+    # - always some reach reward, but later stages dominate once conditions satisfied
+    w_reach = 1.0 - reached_f
+    w_lift = reached_f * (1.0 - lifted_f)
+    w_move = reached_f * lifted_f * (1.0 - above_site_xy_f)
+    w_place = reached_f * lifted_f * above_site_xy_f
+
+    # Normalize weights to avoid dead zones
+    w_sum = w_reach + w_lift + w_move + w_place + eps
+    w_reach = w_reach / w_sum
+    w_lift = w_lift / w_sum
+    w_move = w_move / w_sum
+    w_place = w_place / w_sum
+
+    # -------------------------
+    # Dense reward components
+    # -------------------------
+    # Temperatures (required for transformed components)
+    temp_reach: float = 0.08
+    temp_site_xy: float = 0.12
+    temp_upright: float = 0.25
+    temp_height: float = 0.06
+    temp_cautious: float = 0.10
+
+    # Reach: encourage small hand-object distance
+    r_reach = torch.exp(-dist_hand / temp_reach)
+
+    # Upright: strongly encourage uprightness during lift/move/place
+    # Use exponential on (1 - upright_score) to heavily penalize tilt
+    r_upright = torch.exp(-(1.0 - upright_score) / temp_upright)
+
+    # Lift: encourage object height (only meaningful after reaching)
+    # Target height is lift_z; saturate above it.
+    height_err = torch.clamp(lift_z - obj_z, min=0.0)
+    r_lift = torch.exp(-height_err / temp_height)
+
+    # Move to site in XY (while lifted)
+    r_site_xy = torch.exp(-dist_site_xy / temp_site_xy)
+
+    # Place: bonus for being inside and low enough (shaped)
+    # Provide smooth shaping even before boolean success.
+    # Use a soft "inside" score based on radius.
+    radius = float(self.target_site_radius)
+    inside_soft = torch.exp(-torch.clamp(dist_site_xy - radius, min=0.0) / (radius + 0.02))
+    # low_enough shaping: encourage z down to 0.1 once near site
+    z_target: float = 0.1
+    z_err_place = torch.clamp(obj_z - z_target, min=0.0)
+    r_low = torch.exp(-z_err_place / 0.04)
+    r_place_shaped = inside_soft * r_low
+
+    # Cautiousness: discourage very fast object motion (proxy: hand-object relative speed not available;
+    # use joint velocities as a weak regularizer if present).
+    if hasattr(self, "_robot") and hasattr(self._robot, "data") and hasattr(self._robot.data, "joint_vel"):
+        jv = torch.nan_to_num(self._robot.data.joint_vel, nan=0.0, posinf=0.0, neginf=0.0)
+        speed = torch.linalg.norm(jv, dim=-1)
+    else:
+        speed = torch.zeros((self.num_envs,), device=device)
+    r_cautious = torch.exp(-speed / temp_cautious)
+
+    # -------------------------
+    # Compose staged reward
+    # -------------------------
+    # Make later stages include upright + cautious consistently.
+    stage_reach = r_reach * (0.3 + 0.7 * r_cautious)
+    stage_lift = r_lift * r_upright * (0.4 + 0.6 * r_cautious)
+    stage_move = r_site_xy * r_upright * (0.4 + 0.6 * r_cautious)
+    stage_place = r_place_shaped * r_upright * (0.5 + 0.5 * r_cautious)
+
+    # Weighted staged sum
+    r_staged = (
+        w_reach * stage_reach
+        + w_lift * stage_lift
+        + w_move * stage_move
+        + w_place * stage_place
+    )
+
+    # Sparse success bonus (kept bounded)
+    success = (inside_site & low_enough).float()
+    r_success = 1.0 * success
+
+    # Small penalty if object is very tilted (avoid catastrophic behavior)
+    tilt_pen = torch.clamp(0.7 - upright_score, min=0.0)  # only when quite non-upright
+    r_tilt_pen = -0.2 * tilt_pen
+
+    # Final reward (bounded-ish)
+    reward = 1.5 * r_staged + 1.0 * r_success + r_tilt_pen
+
+    # Safety: finite
+    reward = torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0)
+    assert torch.isfinite(reward).all()
+
+    
+
+    hand_quat = self._robot.data.body_quat_w[:, self.hand_link_idx]
+    q_hand_inv = quat_inv(hand_quat)
+    quat_1=torch.tensor([0, 0, 0, 1],device = self.device)
+    z_quat = quat_1.repeat(self.num_envs,1)
+    quat = quat_mul(z_quat,q_hand_inv)
+    reward = quat[:,1]
+    individual_rewards = {
+        "quat": reward
+        # "reach": torch.nan_to_num(r_reach),
+        # "upright": torch.nan_to_num(r_upright),
+        # "lift": torch.nan_to_num(r_lift),
+        # "site_xy": torch.nan_to_num(r_site_xy),
+        # "place_shaped": torch.nan_to_num(r_place_shaped),
+        # "cautious": torch.nan_to_num(r_cautious),
+        # "stage_mix": torch.nan_to_num(r_staged),
+        # "success_bonus": torch.nan_to_num(r_success),
+        # "tilt_pen": torch.nan_to_num(r_tilt_pen),
+        # "success_metric": success,  # per-env success indicator
+    }
+    return reward, individual_rewards
+                """

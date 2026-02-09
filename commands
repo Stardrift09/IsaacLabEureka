@@ -8,3 +8,134 @@ ssh go49lov2@cool.hpc.lrz.de
 --partition=cm4_inter
 
 #TODO: Test relative path, should be fine
+
+
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+source ~/.bashrc
+
+apt update
+apt install -y \
+    libgl1-mesa-glx \
+    libgl1-mesa-dev \
+    libglu1-mesa \
+    libx11-6 \
+    libxext6 \
+    libxrandr2 \
+    libxinerama1 \
+    libxcursor1 \
+    libxi6 \
+    libxt6
+
+apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libx11-6 \
+    libxext6 \
+    libxt6 \
+    libvulkan1 \
+    mesa-vulkan-drivers \
+    vulkan-tools
+
+sinfo
+scontrol show job 5475590
+scancel
+salloc -p lrz-v100x2 --gres=gpu:1 -t 1:00:00
+salloc -p mcml-hgx-a100-80x4 --gres=gpu:1 -t 1:00:00 --qos=mcml
+srun --pty bash
+enroot create --name isaaclabeureka nvidia+cuda+12.6.3-cudnn-devel-ubuntu22.04.sqsh
+enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
+enroot export --force --output isaaclabeureka.sqsh isaaclabeureka
+squeue -u $USER
+enroot create --name isaaclab_run isaaclabeureka.sqsh
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Franka-Cabinet-Direct-v0 --headless
+
+
+
+export OMNI_KIT_ALLOW_ROOT=1
+export OMNI_HEADLESS=1
+export DISPLAY=:0
+
+
+apt-get update && apt-get install -y less
+export XDG_RUNTIME_DIR=/tmp/runtime-root
+mkdir -p $XDG_RUNTIME_DIR
+
+# vritual X, try this to avoid conflict between anydesk and isaaclab
+apt-get update && apt-get install -y xvfb
+export DISPLAY=:0
+Xvfb :0 -screen 0 1920x1080x24 &
+
+
+
+downgrade to torch2.6
+
+git
+vulkaninfo
+
+cp -r /home/username/my_results/ ~/local_results/
+
+
+
+export ISAAC_SIM_HEADLESS=1
+export KIT_DISABLE_RENDERING=1
+export OMNI_KIT_DISABLE_RENDERING=1
+
+
+
+
+
+tmux 
+ctrl b " h split ctrl b % v split 
+ctrl b direction
+ctrl b d detach
+
+
+################################################################################
+                      Learning iteration 1082/1500                      
+
+                       Computation: 17279 steps/s (collection: 0.991s, learning 0.905s)
+             Mean action noise std: 0.30
+          Mean value_function loss: 67.9907
+               Mean surrogate loss: -0.0034
+                 Mean entropy loss: 0.3657
+                       Mean reward: 3036.61
+               Mean episode length: 495.74
+          Mean episode dist_reward: 1.4431
+           Mean episode rot_reward: 1.0642
+          Mean episode open_reward: 2.9985
+       Mean episode action_penalty: 0.0000
+Mean episode left_finger_distance_reward: 0.0034
+Mean episode right_finger_distance_reward: 0.0845
+  Mean episode finger_dist_penalty: -0.0244
+--------------------------------------------------------------------------------
+                   Total timesteps: 35487744
+                    Iteration time: 1.90s
+                      Time elapsed: 00:34:15
+                               ETA: 00:13:13
+
+################################################################################
+                      Learning iteration 1083/1500                      
+
+                       Computation: 17090 steps/s (collection: 1.013s, learning 0.904s)
+             Mean action noise std: 0.30
+          Mean value_function loss: 122.2935
+               Mean surrogate loss: -0.0032
+                 Mean entropy loss: 0.3620
+                       Mean reward: 3027.82
+               Mean episode length: 495.42
+          Mean episode dist_reward: 1.4438
+           Mean episode rot_reward: 1.0664
+          Mean episode open_reward: 2.9892
+       Mean episode action_penalty: 0.0000
+Mean episode left_finger_distance_reward: 0.0029
+Mean episode right_finger_distance_reward: 0.0851
+  Mean episode finger_dist_penalty: -0.0246
+--------------------------------------------------------------------------------
+                   Total timesteps: 35520512
+                    Iteration time: 1.92s
+                      Time elapsed: 00:34:17
+                               ETA: 00:13:11
+
+###################################################
+35520512-35487744=32768
+2048 * 16 = 32768

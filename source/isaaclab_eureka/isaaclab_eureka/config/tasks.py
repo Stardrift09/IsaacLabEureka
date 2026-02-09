@@ -21,32 +21,47 @@ TASKS_CFG = {
     },
 
 
-    "LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0": {
-        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
-        "success_metric": (
-            "torch.exp(-((0.6 - self._cream_cheese.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
-        ),
-        "success_metric_to_win": 0.9,
-        "success_metric_tolerance": 0.02,
-    },
+    # "LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0": {
+    #     "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
+    #     "success_metric": (
+    #         "torch.exp(-((0.6 - self._cream_cheese.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+    #     ),
+    #     "success_metric_to_win": 0.9,
+    #     "success_metric_tolerance": 0.02,
+    # },
+    
     
     "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the alphabet soup(target object)",
+        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket.",
         "success_metric": (
-            "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
         ),
-        "success_metric_to_win": 0.9,
+        "success_metric_to_win": 0.95,
         "success_metric_tolerance": 0.02,
     },
 
-    "ReplayLivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
-        "success_metric": (
-            "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
-        ),
-        "success_metric_to_win": 0.9,
-        "success_metric_tolerance": 0.02,
-    },
+    # "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+    #     "description": "control the franka arm to pick up the alphabet soup(target object)",
+    #     "success_metric": (
+    #         "extras['Eureka/success_metric'] = torch.exp(-((0.4 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+    #     ),
+    #     "success_metric_to_win": 0.9,
+    #     "success_metric_tolerance": 0.02,
+    # },
+
+    # "ReplayLivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+    #     "description": "control the franka arm to pick up the cream_cheese, neglecting basket for now. Grasp from above to avoid pushing the object away",
+    #     "success_metric": (
+    #         "torch.exp(-((0.6 - self.target_object.data.root_pos_w[env_ids, 2]) ** 2) / (2 * 0.01**2)).mean()"
+    #     ),
+    #     "success_metric_to_win": 0.9,
+    #     "success_metric_tolerance": 0.02,
+    # },
 
 
     "Isaac-Franka-Cabinet-Direct-v0": {
@@ -54,7 +69,7 @@ TASKS_CFG = {
         "success_metric": (
             "torch.exp(-((0.39 - self._cabinet.data.joint_pos[env_ids, 1]) ** 2) / (2 * 0.01**2)).mean()"
         ),
-        "success_metric_to_win": 0.9,
+        "success_metric_to_win": 0.8,
         "success_metric_tolerance": 0.02,
     },
 

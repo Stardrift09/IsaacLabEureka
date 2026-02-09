@@ -296,7 +296,7 @@ class EurekaTaskManager:
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             self._log_dir = os.path.join(log_root_path, log_dir)
-            env.run_replay(self._log_dir)
+            # env.run_replay(self._log_dir)
             env = RslRlVecEnvWrapper(self._env)
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)

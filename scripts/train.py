@@ -8,13 +8,13 @@ import argparse
 import os
 
 from isaaclab_eureka.eureka import Eureka
-import logging
+# import logging
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# )
+# logger = logging.getLogger(__name__)
 
 def main(args_cli):
     eureka = Eureka(
@@ -35,18 +35,19 @@ def main(args_cli):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
-    parser.add_argument("--task", type=str, default="Isaac-Franka-Cabinet-Direct-v0", help="Name oFf the task.")
+
     parser.add_argument("--replay", type=bool, default=False, help="Whether replay the task")
+    parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
     parser.add_argument(
-        "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
+        "--num_parallel_runs", type=int, default=2, help="Number of Eureka runs to execute in parallel."
     )
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--env_seed", type=int, default=42, help="The random seed to use for the environment.")
-    parser.add_argument("--max_eureka_iterations", type=int, default=10, help="The number of Eureka iterations to run.")
+    parser.add_argument("--max_eureka_iterations", type=int, default=1, help="The number of Eureka iterations to run.")
     parser.add_argument(
         "--max_training_iterations",
         type=int,
-        default=1500,
+        default=100,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(

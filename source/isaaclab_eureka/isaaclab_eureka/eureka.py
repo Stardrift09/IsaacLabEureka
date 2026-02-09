@@ -315,8 +315,6 @@ class Eureka:
         total_feed_back_string = "We provide you the output of the reward function on some successful demonstrations as follows, and you can utilize it for better reward generation"
         for metric_name, metric_data in data.items():
             if "Replay/" in metric_name:
-                # Remove the first two data points as they are usually outliers
-                metric_data = metric_data[2:]
                 metric_name = metric_name.split("Replay/", 1)[-1]
                 metric_min = min(metric_data)
                 metric_max = max(metric_data)
