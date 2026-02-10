@@ -147,7 +147,7 @@ class Eureka:
                         result["log_dir"], self._feedback_subsampling
                     )
                     replay_eureka_task_feedback = self._get_replay_task_feedback(
-                        result["log_dir"], self._feedback_subsampling
+                        result["log_dir"]
                     )
                     
                     # Generate the user feedback prompt
@@ -298,7 +298,7 @@ class Eureka:
             f.write(output)
 
 
-    def _get_replay_task_feedback(self, log_dir: str, feedback_subsampling: int) -> tuple[str]:
+    def _get_replay_task_feedback(self, log_dir: str) -> tuple[str]:
         """Get the feedback for the Eureka task.
 
         Args:
@@ -316,18 +316,9 @@ class Eureka:
         for metric_name, metric_data in data.items():
             if "Replay/" in metric_name:
                 metric_name = metric_name.split("Replay/", 1)[-1]
-                metric_min = min(metric_data)
-                metric_max = max(metric_data)
-                metric_mean = sum(metric_data) / len(metric_data)
-                # Best metric is the one closest to the target
-                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
-                if metric_name == "success_metric":
-                    metric_name = "task_score"
-                    success_metric_max = metric_best
-                data_string = [f"{data:.2f}" for data in metric_data[::feedback_subsampling]]
+                data_string = f"{metric_data[0]:.2f}"
                 feedback_string = (
-                    f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
-                    f" {metric_mean:.2f} \n"
+                    f"{metric_name}: {data_string}"
                 )
                 if "Replay/success_metric" in data and metric_name == "Replay/oracle_total_rewards":
                     # If success metric is available, we do not provide the oracle feedback

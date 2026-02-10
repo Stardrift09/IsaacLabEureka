@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import traceback
 import types
+import time
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Literal
@@ -21,7 +22,7 @@ import torch
 def _get_rewards(self):
     rewards_oracle = self._get_rewards_oracle()
     rewards_eureka, rewards_dict = self._get_rewards_eureka()
-    self._eureka_episode_sums["eureka_total_rewards"] += rewards_eureka
+    self._eureka_episode_sums["eureka_total_rewards"] += rewards_eureka # number of envs,
     self._eureka_episode_sums["oracle_total_rewards"] += rewards_oracle
     for key in rewards_dict.keys():
         if key not in self._eureka_episode_sums:
@@ -164,6 +165,8 @@ class EurekaTaskManager:
             rewards_queue: The queue to receive the reward function from the main process
         """
         self._idx = idx
+        wait_time = 10 * idx
+        time.sleep(wait_time)
         while not self.termination_event.is_set():
             if not hasattr(self, "_env"):
                 self._create_environment()

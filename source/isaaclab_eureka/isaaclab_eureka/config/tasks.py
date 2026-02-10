@@ -5,7 +5,7 @@
 TASKS_CFG = {
     "Isaac-Cartpole-Direct-v0": {
         "description": "balance a pole on a cart so that the pole stays upright",
-        "success_metric": "self.episode_length_buf[env_ids].float().mean() / self.max_episode_length",
+        "success_metric": "extras['Eureka/success_metric'] = self.episode_length_buf[env_ids].float().mean() / self.max_episode_length",
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.01,
     },
@@ -14,7 +14,7 @@ TASKS_CFG = {
             "bring the quadcopter to the target position: self._desired_pos_w, while making sure it flies smoothly"
         ),
         "success_metric": (
-            "torch.linalg.norm(self._desired_pos_w[env_ids] - self._robot.data.root_pos_w[env_ids], dim=1).mean()"
+            "extras['Eureka/success_metric'] = torch.linalg.norm(self._desired_pos_w[env_ids] - self._robot.data.root_pos_w[env_ids], dim=1).mean()"
         ),
         "success_metric_to_win": 0.0,
         "success_metric_tolerance": 0.2,
