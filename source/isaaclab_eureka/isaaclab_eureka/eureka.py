@@ -54,7 +54,7 @@ class Eureka:
 
         # Load the task description and success metric
         self._debug = True
-
+        self.replay = replay
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
             self._success_metric_string = TASKS_CFG[task].get("success_metric")
@@ -86,6 +86,7 @@ class Eureka:
             num_processes=self._num_processes,
             max_training_iterations=max_training_iterations,
             success_metric_string=self._success_metric_string,
+            replay=replay
         )
 
         # Logging
@@ -146,15 +147,16 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
-                    replay_eureka_task_feedback = self._get_replay_task_feedback(
-                        result["log_dir"]
-                    )
-                    
+                    if self.replay:
+                        replay_eureka_task_feedback = self._get_replay_task_feedback(
+                            result["log_dir"]
+                        )
+                        eureka_task_feedback +=replay_eureka_task_feedback
+
                     # Generate the user feedback prompt
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
-                        + replay_eureka_task_feedback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
                     )
                     print(user_feedback_prompt)
@@ -298,7 +300,7 @@ class Eureka:
             f.write(output)
 
 
-    def _get_replay_task_feedback(self, log_dir: str) -> tuple[str]:
+    def _get_replay_task_feedback(self, log_dir: str) -> str:
         """Get the feedback for the Eureka task.
 
         Args:

@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import GPUtil
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-
+from pathlib import Path
 
 def load_tensorboard_logs(path: str):
     """Load tensorboard logs from a given path.
@@ -85,8 +85,7 @@ def read_pkl(path):
 
 
 def eureka_root_dir():
-    import os
-    return os.environ.get("EUREKA")
+    return Path(os.path.realpath(__file__)).parents[3]
 
 
 if __name__ == "__main__":

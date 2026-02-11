@@ -46,7 +46,7 @@ def _reset_idx(self, env_ids):
     self._reset_idx_original(env_ids)
     if not "log" in self.extras:
         self.extras["log"] = dict()
-    for key in self._eureka_episode_sums.keys():
+    for key in self._eureka_episode_sums.keys(): # for each step, calculate accumulated reward (component) and adds to extra
         episodic_sum_avg = torch.mean(self._eureka_episode_sums[key][env_ids])
         extras["Eureka/"+key] = episodic_sum_avg / self.max_episode_length_s
         self._eureka_episode_sums[key][env_ids] = 0.0
@@ -70,6 +70,7 @@ class EurekaTaskManager:
         env_seed: int = 42,
         max_training_iterations: int = 100,
         success_metric_string: str = "",
+        replay: bool = False
     ):
         """Initialize the task manager. Each process will create an independent training run.
 
@@ -88,6 +89,7 @@ class EurekaTaskManager:
         self._device = device
         self._max_training_iterations = max_training_iterations
         self._success_metric_string = success_metric_string
+        self.replay = replay
         self._env_seed = env_seed
         # if self._success_metric_string:
         #     self._success_metric_string = "extras['Eureka/success_metric'] = " + self._success_metric_string
@@ -166,6 +168,7 @@ class EurekaTaskManager:
         """
         self._idx = idx
         wait_time = 10 * idx
+        print(f"process{idx} waits for {wait_time}")
         time.sleep(wait_time)
         while not self.termination_event.is_set():
             if not hasattr(self, "_env"):
@@ -299,7 +302,8 @@ class EurekaTaskManager:
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             self._log_dir = os.path.join(log_root_path, log_dir)
-            # env.run_replay(self._log_dir)
+            if self.replay:
+                env.run_replay(self._log_dir)
             env = RslRlVecEnvWrapper(self._env)
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
@@ -329,7 +333,8 @@ class EurekaTaskManager:
             agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
             # Update the log directory to the tensorboard file
             self._log_dir = os.path.join(log_root_path, log_dir, "summaries")
-            env.run_replay(self._log_dir)
+            if self.replay:
+                env.run_replay(self._log_dir)
             clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
             clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
             env = RlGamesVecEnvWrapper(self._env, self._device, clip_obs, clip_actions)

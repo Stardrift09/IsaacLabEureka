@@ -32,7 +32,7 @@ TASKS_CFG = {
     
     
     "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket.",
+        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket. This is a long horizon task so use the self.helper_variable for keeping current stage of the task.",
         "success_metric": (
          """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
