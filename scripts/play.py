@@ -51,7 +51,8 @@ def main(args_cli):
 
         env = RslRlVecEnvWrapper(env)
         ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        ppo_runner.load(checkpoint)
+        # load on aviable device
+        ppo_runner.load(checkpoint,map_location=device)
         # obtain the trained policy for inference
         policy = ppo_runner.get_inference_policy(device=env.unwrapped.device)
 
@@ -140,7 +141,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
     parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket", help="Name of the task.")
     # parser.add_argument("--task", type=str, default="Isaac-Cartpole-Direct-v0", help="Name of the task.")
-    parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to simulate.")
+    parser.add_argument("--num_envs", type=int, default=20, help="Number of environments to simulate.")
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--checkpoint", type=str, default="/home/admin_01/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/franka_test_direct/2026-01-27_07-36-45_Run-0/model_1499.pt", help="Absolute path to model checkpoint.")
     parser.add_argument(

@@ -22,7 +22,7 @@ import torch
 def _get_rewards(self):
     rewards_oracle = self._get_rewards_oracle()
     rewards_eureka, rewards_dict = self._get_rewards_eureka()
-    self._eureka_episode_sums["eureka_total_rewards"] += rewards_eureka # number of envs,
+    self._eureka_episode_sums["eureka_total_rewards"] += rewards_eureka
     self._eureka_episode_sums["oracle_total_rewards"] += rewards_oracle
     for key in rewards_dict.keys():
         if key not in self._eureka_episode_sums:
@@ -184,21 +184,14 @@ class EurekaTaskManager:
             if isinstance(reward_func_string, str) and reward_func_string.startswith("def _get_rewards_eureka(self)"):
                 try:
                     self._prepare_eureka_environment(reward_func_string)
-
                     # Only print the output of process 0
                     context = MuteOutput() if self._idx > 0 else nullcontext()
                     with context:
                         # Run training and send result to main process
-
                         self._run_training()
                     result = {"success": True, "log_dir": self._log_dir}
                 except Exception as e:
                     result = {"success": False, "exception": str(e)}
-                    # try to stop black screen..
-                    # e_str = str(e)
-                    # if str(e).startswith("CUDA error"):
-                    #     import os
-                    #     os.system("sudo reboot")
                     print(traceback.format_exc())
             else:
                 result = {
@@ -260,7 +253,6 @@ class EurekaTaskManager:
             template_reset_string_with_success_metric = TEMPLATE_RESET_STRING.format(
                 module_name=env.__module__, success_metric=self._success_metric_string
             )
-            print(template_reset_string_with_success_metric)
             # hack: can't enable inference with rl_games
             if self._rl_library == "rl_games":
                 template_reset_string_with_success_metric = template_reset_string_with_success_metric.replace(
@@ -285,6 +277,7 @@ class EurekaTaskManager:
         env = self._env.unwrapped
 
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
         if self._rl_library == "rsl_rl":
             from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
             from rsl_rl.runners import OnPolicyRunner
@@ -296,7 +289,6 @@ class EurekaTaskManager:
             log_root_path = os.path.join("logs", "rl_runs", "rsl_rl_eureka", agent_cfg.experiment_name)
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
-
             # specify directory for logging runs: {time-stamp}_{run_name}
             log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
             if agent_cfg.run_name:
@@ -358,72 +350,3 @@ class EurekaTaskManager:
             runner.run({"train": True, "play": False, "sigma": None})
         else:
             raise Exception(f"framework {framework} is not supported yet.")
-
-    def _run_replay(self):
-        
-        import torch
-        # [num_envs, step, states]
-        # first loop over, add padding, then stack.
-        episodes = self._env.data["franka"]
-        num_episodes = len(episodes)
-        sample = episodes[0]["states"][0].copy()
-        sample.pop("franka", None)
-        
-        # 1. Determine object names and ordering
-        object_names = sorted(list(sample.keys()))
-        if self.debug:
-            print(object_names)
-        object_indices = {name: i for i, name in enumerate(object_names)}
-
-        num_objects = len(object_names)
-        # 2. Compute max episode length
-        lengths = [len(ep["states"]) for ep in episodes]
-        if self.debug:
-            print(lengths)
-        max_len = max(lengths)
-        if self.debug:
-            print(f"max_len {max_len}")
-        # 3. Determine state dimensions
-        # robot
-        robot_pos_dim = len(episodes[0]["states"][0]["franka"]["pos"])      # 3
-
-        # actually I am not using this..
-        robot_rot_dim = len(episodes[0]["states"][0]["franka"]["rot"])      # 4
-        robot_dof_dim = len(episodes[0]["states"][0]["franka"]["dof_pos"])  # num_joints
-
-        # rigid objects (all share same structure)
-        one_obj = next(iter({k: v for k, v in sample.items() if k != "franka"}.values()))
-        object_pos_dim = len(one_obj["pos"])              # 3
-        object_rot_dim = len(one_obj["rot"])              # 4
-
-        # 4. Preallocate tensors
-        # robot_pos = torch.zeros((num_episodes, max_len, robot_pos_dim))
-        # robot_rot = torch.zeros((num_episodes, max_len, robot_rot_dim))
-        robot_dof = torch.zeros((num_episodes, max_len, robot_dof_dim),device=self.device,dtype=torch.float32)
-
-        object_pos = torch.zeros((num_episodes, max_len, num_objects, object_pos_dim),device=self.device,dtype=torch.float32)
-        object_rot = torch.zeros((num_episodes, max_len, num_objects, object_rot_dim),device=self.device,dtype=torch.float32)
-
-        padding_mask = torch.ones((num_episodes, max_len), dtype=torch.bool)
-
-        # 5. Fill tensors
-        for env_idx, ep in enumerate(episodes): # each episode
-            ep_len = lengths[env_idx]
-
-            for t, state in enumerate(ep["states"]):
-                # robot
-                # robot_pos[env_idx, t] = torch.tensor(state["franka"]["pos"])
-                # robot_rot[env_idx, t] = torch.tensor(state["franka"]["rot"])
-
-                dof_vals = [v[0] for v in state["franka"]["dof_pos"].values()]
-                robot_dof[env_idx, t] = torch.tensor(dof_vals)
-
-                # objects
-                for obj_idx, obj_name in enumerate(object_names):
-                    obj = state[obj_name]
-                    object_pos[env_idx, t, obj_idx] = torch.tensor(obj["pos"])
-                    object_rot[env_idx, t, obj_idx] = torch.tensor(obj["rot"])
-
-            # padding mask
-            padding_mask[env_idx, :ep_len] = False
-    

@@ -1,6 +1,6 @@
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0 --headless
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket --headless
 
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=LivingRoomScene1PickUpTheCreamCheeseAndPutItInTheBasket-v0 --num_envs=20  --video --video_length=1000
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket --num_envs=20  --video --video_length=1000
 
 ssh go49lov2@cool.hpc.lrz.de
 
@@ -39,18 +39,27 @@ apt-get update && apt-get install -y \
 sinfo
 scontrol show job 5475590
 scancel
-salloc -p lrz-v100x2 --gres=gpu:1 -t 1:00:00
+salloc -p lrz-v100x2 --gres=gpu:2 -t 4:00:00 --mem=200G
 salloc -p mcml-hgx-a100-80x4 --gres=gpu:1 -t 1:00:00 --qos=mcml
+salloc -p mcml-hgx-a100-80x4 --gres=gpu:1 -t 1:00:00 --qos=mcml
+salloc -p mcml-dgx-a100-40x8 --gres=gpu:8 --qos=mcml -t 12:00:00 --mem=800G --cpus-per-task=16
 srun --pty bash
 enroot create --name isaaclabeureka nvidia+cuda+12.6.3-cudnn-devel-ubuntu22.04.sqsh
 enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 enroot export --force --output isaaclabeureka.sqsh isaaclabeureka
 squeue -u $USER
+
+sbatch test.sbatch 
+watch squeue --user=$USER
+
 enroot create --name isaaclab_run isaaclabeureka.sqsh
+enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Franka-Cabinet-Direct-v0 --headless
 
 
-
+salloc -p mcml-dgx-a100-40x8 --gres=gpu:8 --qos=mcml -t 08:00:00 --mem=800G --cpus-per-task=96
+salloc -p lrz-hgx-h100-94x4 --gres=gpu:4 --qos=mcml -t 10:00:00 --mem=400G --cpus-per-task=48
+scp -r lrz:/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/projects/IsaacLabEureka/logs .
 export OMNI_KIT_ALLOW_ROOT=1
 export OMNI_HEADLESS=1
 export DISPLAY=:0
@@ -81,13 +90,36 @@ export KIT_DISABLE_RENDERING=1
 export OMNI_KIT_DISABLE_RENDERING=1
 
 
+Reset the commit but keep the changes staged
+git reset --soft HEAD~1
 
+
+git fetch origin
+git reset --hard origin/libero
+
+
+hf upload --repo-type dataset EfreetSultan/libero_traj ./libero .
+hf upload-large-folder --repo-type dataset EfreetSultan/libero_traj ./libero
 
 
 tmux 
 ctrl b " h split ctrl b % v split 
 ctrl b direction
 ctrl b d detach
+
+
+
+
+
+
+bashrc
+export OMNI_KIT_ALLOW_ROOT=1
+export OMNI_HEADLESS=1
+export DISPLAY=:0
+export OPENAI_API_KEY="sk-xxx"
+export EUREKA=workspace/isaaclabeureka
+
+
 
 
 ################################################################################
