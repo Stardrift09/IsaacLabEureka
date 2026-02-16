@@ -27,7 +27,8 @@ def main(args_cli):
         feedback_subsampling=args_cli.feedback_subsampling,
         temperature=args_cli.temperature,
         gpt_model=args_cli.gpt_model,
-        replay=args_cli.replay
+        replay=args_cli.replay,
+        keep_best_reward=args_cli.keep_best_reward,
     )
 
     eureka.run(max_eureka_iterations=args_cli.max_eureka_iterations)
@@ -35,15 +36,15 @@ def main(args_cli):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
-
-    parser.add_argument("--replay", type=bool, default=True, help="Whether replay the task")
-    parser.add_argument("--task", type=str, default="LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket", help="Name of the task.")
+    parser.add_argument("--keep_best_reward", type=bool, default=True, help="Whether to keep the best reward function for better reward generation. It is more costly")
+    parser.add_argument("--replay", type=bool, default=False, help="Whether replay the task")
+    parser.add_argument("--task", type=str, default="TestPutItInTheBasket", help="Name of the task.")
     parser.add_argument(
         "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
     )
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--env_seed", type=int, default=42, help="The random seed to use for the environment.")
-    parser.add_argument("--max_eureka_iterations", type=int, default=20, help="The number of Eureka iterations to run.")
+    parser.add_argument("--max_eureka_iterations", type=int, default=3, help="The number of Eureka iterations to run.")
     parser.add_argument(
         "--max_training_iterations",
         type=int,   

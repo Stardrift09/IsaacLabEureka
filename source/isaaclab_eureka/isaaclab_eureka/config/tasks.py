@@ -30,30 +30,45 @@ TASKS_CFG = {
     #     "success_metric_tolerance": 0.02,
     # },
     
-    # This one worked in grasping and lifting object
-    "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket. This is a long horizon task so use the self.helper_variable for keeping current stage of the task.",
-        "success_metric": (
-         """
-    extras['Eureka/success_metric'] = (self.target_object.data.root_pos_w[env_ids, 2] > 0.4).float().mean()"""
-        ),
-        "success_metric_to_win": 0.95,
-        "success_metric_tolerance": 0.02,
-    },
-
+    # # This one worked in grasping and lifting object
     # "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
     #     "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket. This is a long horizon task so use the self.helper_variable for keeping current stage of the task.",
     #     "success_metric": (
-    #      """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
-    # obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
-    # site_pos = self.target_site.data.root_pos_w[env_ids, :2]
-    # dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
-    # inside_site = dist2 < self.target_site_radius**2
-    # extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
+    #      """
+    # extras['Eureka/success_metric'] = (self.target_object.data.root_pos_w[env_ids, 2] > 0.4).float().mean()"""
     #     ),
     #     "success_metric_to_win": 0.95,
     #     "success_metric_tolerance": 0.02,
     # },
+
+    "TestPutItInTheBasket": {
+        "description": "The target object in already grasped, hold tightly, and lift it up for some distance, move to the basket and drop it in the basket.",
+        "success_metric": (
+         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
+
+
+    "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket. This is a long horizon task so use the self.helper_variable for keeping current stage of the task.",
+        "success_metric": (
+         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
 
 
 
@@ -80,9 +95,9 @@ TASKS_CFG = {
     "Isaac-Franka-Cabinet-Direct-v0": {
         "description": "control the franka arm to open the cabinet drawer",
         "success_metric": (
-            "torch.exp(-((0.39 - self._cabinet.data.joint_pos[env_ids, 1]) ** 2) / (2 * 0.01**2)).mean()"
+            "extras['Eureka/success_metric'] = torch.exp(-((0.39 - self._cabinet.data.joint_pos[env_ids, 1]) ** 2) / (2 * 0.01**2)).mean()"
         ),
-        "success_metric_to_win": 0.8,
+        "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.02,
     },
 

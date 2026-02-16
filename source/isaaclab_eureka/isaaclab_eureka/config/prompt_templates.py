@@ -47,7 +47,7 @@ We trained a RL policy using the provided reward function code and tracked the v
 
 
 TASK_SUCCESS_POST_FEEDBACK_PROMPT = """
-Please carefully analyze the policy feedback and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
+Please carefully analyze the feedback and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
     (1) If the success rates are always near zero, then you must rewrite the entire reward function
     (2) If the values for a certain reward component are near identical throughout, then this means RL is not able to optimize this component as it is written. You may consider
         (a) Changing its scale or the value of its temperature parameter
@@ -64,4 +64,15 @@ The success metric is: {success_metric}
 The desired task score is: {success_metric_to_win}
 Here is how we get the observations and updata important intermediate values from the environment:
 {get_observations_method_as_string}
+"""
+
+
+REPLAY_FEEDBACK_PROMPT = """We provide you the output of the reward function on some successful demonstrations as follows, and you can utilize it for better reward generation:
+{replay_feedback_string}"""
+
+
+BEST_ITERATION_FEEDBACK_PROMPT = """The best reward function we have so far has the following feedback string: 
+{success_metric}
+{gpt_reward_method}
+{task_feedback}
 """

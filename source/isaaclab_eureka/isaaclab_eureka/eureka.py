@@ -16,6 +16,8 @@ from isaaclab_eureka.config import (
     TASK_SUCCESS_POST_FEEDBACK_PROMPT,
     TASK_SUCCESS_PRE_FEEDBACK_PROMPT,
     TASKS_CFG,
+    REPLAY_FEEDBACK_PROMPT,
+    BEST_ITERATION_FEEDBACK_PROMPT,
 )
 from isaaclab_eureka.managers import EurekaTaskManager, LLMManager
 from isaaclab_eureka.utils import load_tensorboard_logs
@@ -36,6 +38,7 @@ class Eureka:
         gpt_model: str = "gpt-4",
         num_parallel_runs: int = 1,
         replay: bool = False,
+        keep_best_reward: bool = False,
     ):
         """Initialize the Eureka class.
 
@@ -54,6 +57,7 @@ class Eureka:
 
         # Load the task description and success metric
         self._debug = True
+        self.keep_best_reward = keep_best_reward
         self.replay = replay
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
@@ -109,12 +113,14 @@ class Eureka:
         import numpy as np
 
         # Initial prompts
+        resume = False
+        if resume:
+            pass
         user_prompt = DIRECT_WORKFLOW_TASK_PROMPT.format(
             task_description=self._task_description,
             success_metric = self._success_metric_string,
             success_metric_to_win=self._success_metric_to_win,
             get_observations_method_as_string=self._task_manager.get_observations_method_as_string,
-            # get_dones_method_as_string=self._task_manager.get_dones_method_as_string,
         )
         if self._debug:
             print(user_prompt)
@@ -139,7 +145,7 @@ class Eureka:
             # Evaluate the results
             iter_best_success_metric = None
             best_run_idx = 0
-            for idx, result in enumerate(results):
+            for idx, result in enumerate(results): # idx is for different runs
                 if not result["success"]:
                     user_feedback_prompt = TASK_FAILURE_FEEDBACK_PROMPT.format(traceback_msg=result["exception"])
                 else:
@@ -151,12 +157,22 @@ class Eureka:
                         replay_eureka_task_feedback = self._get_replay_task_feedback(
                             result["log_dir"]
                         )
-                        eureka_task_feedback +=replay_eureka_task_feedback
-
+                    else:
+                        replay_eureka_task_feedback = ""
+                    if self.keep_best_reward and best_run_results["success_metric"] is not None:
+                        best_iter_feeback = BEST_ITERATION_FEEDBACK_PROMPT.format(
+                            success_metric=best_run_results["success_metric"],
+                            gpt_reward_method=best_run_results["gpt_reward_method"],
+                            task_feedback=best_run_results["task_feedback"],
+                        )
+                    else:
+                        best_iter_feeback = ""
                     # Generate the user feedback prompt
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
+                        + replay_eureka_task_feedback
+                        + best_iter_feeback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
                     )
                     print(user_feedback_prompt)
@@ -166,7 +182,7 @@ class Eureka:
                     results[idx]["rewards_correlation"] = rewards_correlation
 
                     # Check the best performing metric, determined by the minimum distance from the win target
-                    if success_metric_max is not None and (
+                    if success_metric_max is not None and ( # TODO: this need to be fixed
                         iter_best_success_metric is None
                         or np.abs(success_metric_max - self._success_metric_to_win)
                         < np.abs(iter_best_success_metric - self._success_metric_to_win)
@@ -314,7 +330,7 @@ class Eureka:
 
         data = load_tensorboard_logs(log_dir)
         # Make a summary of each plot in the tensorboard logs
-        total_feed_back_string = "We provide you the output of the reward function on some successful demonstrations as follows, and you can utilize it for better reward generation"
+        replay_feed_back_string = ""
         for metric_name, metric_data in data.items():
             if "Replay/" in metric_name:
                 metric_name = metric_name.split("Replay/", 1)[-1]
@@ -325,5 +341,6 @@ class Eureka:
                 if "Replay/success_metric" in data and metric_name == "Replay/oracle_total_rewards":
                     # If success metric is available, we do not provide the oracle feedback
                     feedback_string = ""
-                total_feed_back_string += feedback_string
-        return total_feed_back_string
+                replay_feed_back_string += feedback_string
+        full_replay_feedback_string = REPLAY_FEEDBACK_PROMPT.format(replay_feedback_string=replay_feed_back_string)
+        return full_replay_feedback_string

@@ -167,7 +167,7 @@ class EurekaTaskManager:
             rewards_queue: The queue to receive the reward function from the main process
         """
         self._idx = idx
-        wait_time = 10 * idx
+        wait_time = 90 * idx
         print(f"process{idx} waits for {wait_time}")
         time.sleep(wait_time)
         while not self.termination_event.is_set():
