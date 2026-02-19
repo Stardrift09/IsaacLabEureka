@@ -35,7 +35,8 @@ if __name__ == "__main__":
     """Create the environment for the task."""
     root = eureka_root_dir()
     log_dir = os.path.join(root, "logs", "replay_test")
-    task = "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket"
+    # task = "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket"
+    task = "TestPutItInTheBasket"
     from isaaclab.app import AppLauncher
     from isaaclab_eureka.utils import MuteOutput, get_freest_gpu
     device = "cuda"
@@ -64,7 +65,7 @@ if __name__ == "__main__":
     env = gym.make(task, cfg=env_cfg)
     env = env.unwrapped
     env.reset()
-    env.run_replay(log_dir)
+    env.run_replay(log_dir,render=True)
 
     total_feed_back_string = get_replay_task_feedback(log_dir=log_dir)
     print(total_feed_back_string)

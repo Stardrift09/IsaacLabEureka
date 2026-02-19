@@ -42,7 +42,7 @@ TASKS_CFG = {
     # },
 
     "TestPutItInTheBasket": {
-        "description": "The target object in already grasped, hold tightly, and lift it up for some distance, move to the basket and drop it in the basket.",
+        "description": "The target object in already grasped, hold tightly, and lift it up until it is higher than the target_site, move to the basket and open the gripper to drop it in the basket. Keep the robot hand orientation unchanged",
         "success_metric": (
          """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]

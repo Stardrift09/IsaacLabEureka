@@ -109,7 +109,8 @@ ctrl b d detach
 
 
 
-
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate isaaclab
 
 
 bashrc
@@ -118,6 +119,14 @@ export OMNI_HEADLESS=1
 export DISPLAY=:0
 export OPENAI_API_KEY="sk-xxx"
 export EUREKA=workspace/isaaclabeureka
+
+
+
+# Exports in slurm
+export EUREKA=/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/projects/IsaacLabEureka
+export ENROOT=/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/enroot-images
+export USER=go49lov2
+
 
 
 
