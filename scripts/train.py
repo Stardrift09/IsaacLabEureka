@@ -17,6 +17,9 @@ from isaaclab_eureka.eureka import Eureka
 # logger = logging.getLogger(__name__)
 
 def main(args_cli):
+    if args_cli.task in ["TestPutItInTheBasket","Isaac-Franka-Cabinet-Direct-v0","AToB"] and args_cli.replay:
+        args_cli.replay = False
+        print("Current task doesn't have successful demos, setting replay to False")
     eureka = Eureka(
         task=args_cli.task,
         rl_library=args_cli.rl_library,
@@ -44,7 +47,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--env_seed", type=int, default=42, help="The random seed to use for the environment.")
-    parser.add_argument("--max_eureka_iterations", type=int, default=3, help="The number of Eureka iterations to run.")
+    parser.add_argument("--max_eureka_iterations", type=int, default=10, help="The number of Eureka iterations to run.")
     parser.add_argument(
         "--max_training_iterations",
         type=int,   
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--feedback_subsampling",
         type=int,
-        default=100,
+        default=200,
         help="The subsampling of the metrics given as feedack to the LLM.",
     )
     parser.add_argument(

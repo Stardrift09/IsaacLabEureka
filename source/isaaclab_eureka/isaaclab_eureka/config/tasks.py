@@ -9,6 +9,19 @@ TASKS_CFG = {
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.01,
     },
+
+    "AToB": {
+        "description": "Control the eef to move to the desired position, I want success so make sure you have bonus on success",
+        "success_metric": """obj_xyz = self.target_pos[env_ids]
+    grasp_pos = self.robot_grasp_pos[env_ids]
+    dist2 = ((obj_xyz - grasp_pos)**2).sum(dim=-1)
+    tolerance=torch.tensor(0.1,device=self.device)
+    inside_site = dist2 < tolerance**2
+    extras['Eureka/success_metric'] =inside_site.float().mean()""",
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.01,
+    },
+
     "Isaac-Quadcopter-Direct-v0": {
         "description": (
             "bring the quadcopter to the target position: self._desired_pos_w, while making sure it flies smoothly"
@@ -42,7 +55,25 @@ TASKS_CFG = {
     # },
 
     "TestPutItInTheBasket": {
-        "description": "The target object in already grasped, hold tightly, and lift it up until it is higher than the target_site, move to the basket and open the gripper to drop it in the basket. Keep the robot hand orientation unchanged",
+        "description": """**Initial condition:**  
+        The robot gripper rigidly grasps the target object with a stable, non-slipping grasp. The basket (target receptacle) pose is known.
+
+**Objective:**  
+Lift it safely, and place it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress. Add regularization on the robot action, avoid singularity and weird motion.
+
+## Task sequence and constraints
+
+### 1) Hold
+- Make sure a stable grasp before lifting.
+
+### 2) Lift
+- Move the grasped object horizontally toward the basket.
+- Keep the motion smooth and controlled.
+
+### 4) Place
+- Position the object above the basket opening.
+- Release the object so that it falls inside the basket.
+        """,
         "success_metric": (
          """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
@@ -56,8 +87,28 @@ TASKS_CFG = {
     },
 
 
+
+
     "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
-        "description": "control the franka arm to pick up the target object without pushing it away, lift it up and drop it in the basket. This is a long horizon task so use the self.helper_variable for keeping current stage of the task.",
+        "description": """**Initial condition:**  
+The robot starts with its gripper free. The target object is placed on a table. The basket position is known. The robot must avoid pushing the object away before grasping.
+
+**Objective:**  
+Pick up the target object in a controlled manner, lift it safely, and place it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress. Add regularization on the robot action, avoid singularity and weird motion.
+
+## Task sequence and constraints
+
+### 1) Approach and grasp
+- Move the end-effector toward the object without pushing or sliding it.
+- Establish a stable grasp before lifting.
+
+### 2) Lift
+- Move the grasped object horizontally toward the basket.
+- Keep the motion smooth and controlled.
+
+### 4) Place
+- Position the object above the basket opening.
+- Release the object so that it falls inside the basket.""",
         "success_metric": (
          """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
