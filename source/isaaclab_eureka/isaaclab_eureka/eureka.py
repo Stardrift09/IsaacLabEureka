@@ -58,6 +58,7 @@ class Eureka:
         # Load the task description and success metric
         self._debug = True
         self.keep_best_reward = keep_best_reward
+        self.smooth_metric = True
         self.replay = replay
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
@@ -254,7 +255,14 @@ class Eureka:
                 metric_data = metric_data[2:]
                 metric_name = metric_name.split("Eureka/", 1)[-1]
                 metric_min = min(metric_data)
-                metric_max = max(metric_data)
+                # Smooth the data with a moving average to get a stable max
+                if self.smooth_metric:
+                    window_size = 5
+                    if len(metric_data) >= window_size:
+                        smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
+                        metric_max = max(smoothed)
+                    else:
+                        metric_max = max(metric_data)
                 metric_mean = sum(metric_data) / len(metric_data)
                 # Best metric is the one closest to the target
                 metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]

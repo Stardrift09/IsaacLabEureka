@@ -11,7 +11,7 @@ TASKS_CFG = {
     },
 
     "AToB": {
-        "description": "Control the eef to move to the desired position, I want success so make sure you have bonus on success",
+        "description": "Control the eef to move to the desired position, shape the reward well to avoid being stuck at local minimum",
         "success_metric": """obj_xyz = self.target_pos[env_ids]
     grasp_pos = self.robot_grasp_pos[env_ids]
     dist2 = ((obj_xyz - grasp_pos)**2).sum(dim=-1)
