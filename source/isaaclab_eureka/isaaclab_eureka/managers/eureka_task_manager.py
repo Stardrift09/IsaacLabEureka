@@ -273,6 +273,8 @@ class EurekaTaskManager:
 
     def _run_training(self, framework: Literal["rsl_rl", "rl_games"] = "rsl_rl"):
         """Run the training of the task."""
+        import socket
+        host_name = socket.gethostname()
         # replay first
         env = self._env.unwrapped
 
@@ -290,7 +292,8 @@ class EurekaTaskManager:
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
             # specify directory for logging runs: {time-stamp}_{run_name}
-            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}"
+
+            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}" + host_name
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             self._log_dir = os.path.join(log_root_path, log_dir)
@@ -317,7 +320,7 @@ class EurekaTaskManager:
             # specify directory for logging runs
             log_dir = (
                 agent_cfg["params"]["config"].get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-                + f"_Run-{self._idx}"
+                + f"_Run-{self._idx}" + host_name
             )
             # set directory into agent config
             # logging directory path: <train_dir>/<full_experiment_name>

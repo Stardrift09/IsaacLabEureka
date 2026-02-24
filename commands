@@ -1,6 +1,6 @@
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket --headless
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=TestPutItInTheBasket --headless
 
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket --num_envs=20  --video --video_length=1000
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=TestPutItInTheBasket --num_envs=20  --video --video_length=1000
 
 ssh go49lov2@cool.hpc.lrz.de
 
@@ -10,9 +10,16 @@ ssh go49lov2@cool.hpc.lrz.de
 #TODO: Test relative path, should be fine
 
 
+#Installation enroot container isaaclabeureka env
+# if using conda: seems not good for sbatch
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
 source ~/.bashrc
+
+#else
+apt install -y python3 python3-pip python3-venv # Acutally it should be 3.11
+
+
 
 apt update
 apt install -y \
@@ -36,6 +43,9 @@ apt-get update && apt-get install -y \
     mesa-vulkan-drivers \
     vulkan-tools
 
+apt install git
+
+
 sinfo
 scontrol show job 5475590
 scancel
@@ -47,6 +57,9 @@ srun --pty bash
 enroot create --name isaaclabeureka nvidia+cuda+12.6.3-cudnn-devel-ubuntu22.04.sqsh
 enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 enroot export --force --output isaaclabeureka.sqsh isaaclabeureka
+enroot export --force --output isaaclabeureka_v0.sqsh isaaclabeureka_v0
+enroot create --name isaaclabeureka_v1 isaaclabeureka_v0.sqsh
+enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclabeureka_v1 bash
 squeue -u $USER
 
 sbatch test.sbatch 
@@ -63,7 +76,7 @@ scp -r lrz:/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/projects/IsaacLabEureka/logs 
 export OMNI_KIT_ALLOW_ROOT=1
 export OMNI_HEADLESS=1
 export DISPLAY=:0
-
+  
 
 apt-get update && apt-get install -y less
 export XDG_RUNTIME_DIR=/tmp/runtime-root
@@ -126,6 +139,19 @@ export EUREKA=workspace/isaaclabeureka
 export EUREKA=/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/projects/IsaacLabEureka
 export ENROOT=/dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/enroot-images
 export USER=go49lov2
+
+
+
+# add the below lines to root dir vscode settings to get proper...
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/IsaacLab/source/isaaclab_tasks",
+        "${workspaceFolder}/IsaacLab/source/isaaclab_mimic",
+        "${workspaceFolder}/IsaacLab/source/isaaclab",
+        "${workspaceFolder}/IsaacLab/source/isaaclab_assets",
+        "${workspaceFolder}/IsaacLab/source/isaaclab_rl",
+        "${workspaceFolder}/source/isaaclab_eureka"
+    ],
+    "python.envFile": "${workspaceFolder}/.env"
 
 
 

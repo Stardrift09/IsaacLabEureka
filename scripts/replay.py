@@ -35,6 +35,10 @@ if __name__ == "__main__":
     """Create the environment for the task."""
     root = eureka_root_dir()
     log_dir = os.path.join(root, "logs", "replay_test")
+    if os.path.exists(log_dir):
+        if os.listdir(log_dir):
+            print("folder is not empty")
+            exit()
     # task = "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket"
     task = "TestPutItInTheBasket"
     from isaaclab.app import AppLauncher
