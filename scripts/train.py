@@ -17,7 +17,7 @@ from isaaclab_eureka.eureka import Eureka
 # logger = logging.getLogger(__name__)
 
 def main(args_cli):
-    if args_cli.task in ["TestPutItInTheBasket","Isaac-Franka-Cabinet-Direct-v0","AToB"] and args_cli.replay:
+    if args_cli.task in ["Isaac-Franka-Cabinet-Direct-v0","AToB"] and args_cli.replay:
         args_cli.replay = False
         print("Current task doesn't have successful demos, setting replay to False")
     eureka = Eureka(
@@ -40,7 +40,7 @@ def main(args_cli):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
     parser.add_argument("--keep_best_reward", type=bool, default=True, help="Whether to keep the best reward function for better reward generation. It is more costly")
-    parser.add_argument("--replay", type=bool, default=False, help="Whether replay the task")
+    parser.add_argument("--replay", type=bool, default=True, help="Whether replay the task")
     parser.add_argument("--task", type=str, default="TestPutItInTheBasket", help="Name of the task.")
     parser.add_argument(
         "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--feedback_subsampling",
         type=int,
-        default=200,
+        default=100,
         help="The subsampling of the metrics given as feedack to the LLM.",
     )
     parser.add_argument(
