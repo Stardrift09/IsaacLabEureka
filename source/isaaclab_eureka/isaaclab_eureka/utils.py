@@ -59,7 +59,7 @@ class MuteOutput:
 
 import pickle
 def read_pkl(path):
-    debug = True
+    debug = False
     with open(path, "rb") as f: 
         data = pickle.load(f)
         if debug: 

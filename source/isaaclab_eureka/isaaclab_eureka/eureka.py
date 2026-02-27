@@ -252,20 +252,20 @@ class Eureka:
         for metric_name, metric_data in data.items():
             if "Eureka/" in metric_name:
                 # Remove the first two data points as they are usually outliers
-                metric_data = metric_data[2:]
+                metric_data = metric_data[100:]
                 metric_name = metric_name.split("Eureka/", 1)[-1]
                 metric_min = min(metric_data)
+                metric_max = max(metric_data)
+                metric_mean = sum(metric_data) / len(metric_data)
+                # Best metric is the one closest to the target
                 # Smooth the data with a moving average to get a stable max
                 if self.smooth_metric:
                     window_size = 5
                     if len(metric_data) >= window_size:
                         smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
-                        metric_max = max(smoothed)
+                        metric_best = smoothed[np.abs(np.array(smoothed) - self._success_metric_to_win).argmin()]
                     else:
-                        metric_max = max(metric_data)
-                metric_mean = sum(metric_data) / len(metric_data)
-                # Best metric is the one closest to the target
-                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
+                        metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
                 if metric_name == "success_metric":
                     metric_name = "task_score"
                     success_metric_max = metric_best
@@ -319,8 +319,9 @@ class Eureka:
             output += "- No successful training run\n"
 
         print("Final results:\n", output)
-
-        with open(f"{self._log_dir}/eureka_final_result.txt", "w") as f:
+        import socket
+        host_name = socket.gethostname()
+        with open(f"{self._log_dir}/eureka_final_result.txt_{host_name}", "w") as f:
             f.write(output)
 
 
