@@ -11,7 +11,7 @@ TASKS_CFG = {
     },
 
     "AToB": {
-        "description": "Control the eef to move to the desired position, shape the reward well to avoid being stuck at local minimum",
+        "description": "Control the eef to move to the desired position, shape the reward well to avoid being stuck at local minimum, add reward on manipulability",
         "success_metric": """obj_xyz = self.target_pos[env_ids]
     grasp_pos = self.robot_grasp_pos[env_ids]
     dist2 = ((obj_xyz - grasp_pos)**2).sum(dim=-1)
@@ -146,9 +146,9 @@ Pick up the target object in a controlled manner, lift it safely, and place it i
     "Isaac-Franka-Cabinet-Direct-v0": {
         "description": "control the franka arm to open the cabinet drawer",
         "success_metric": (
-            "extras['Eureka/success_metric'] = torch.exp(-((0.39 - self._cabinet.data.joint_pos[env_ids, 1]) ** 2) / (2 * 0.01**2)).mean()"
+            "extras['Eureka/success_metric'] = (0.39 < self._cabinet.data.joint_pos[env_ids, 1]).float().mean()"
         ),
-        "success_metric_to_win": 1.0,
+        "success_metric_to_win": 0.9,
         "success_metric_tolerance": 0.02,
     },
 

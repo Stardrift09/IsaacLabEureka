@@ -39,6 +39,7 @@ class Eureka:
         num_parallel_runs: int = 1,
         replay: bool = False,
         keep_best_reward: bool = False,
+        resume:bool = False
     ):
         """Initialize the Eureka class.
 
@@ -80,6 +81,7 @@ class Eureka:
             num_suggestions=self._num_processes,
             temperature=temperature,
             system_prompt=DIRECT_WORKFLOW_INITIAL_PROMPT,
+            resume=resume
         )
 
         print("[INFO]: Setting up the Task Manager...")
@@ -114,9 +116,6 @@ class Eureka:
         import numpy as np
 
         # Initial prompts
-        resume = False
-        if resume:
-            pass
         user_prompt = DIRECT_WORKFLOW_TASK_PROMPT.format(
             task_description=self._task_description,
             success_metric = self._success_metric_string,
@@ -260,7 +259,7 @@ class Eureka:
                 # Best metric is the one closest to the target
                 # Smooth the data with a moving average to get a stable max
                 if self.smooth_metric:
-                    window_size = 5
+                    window_size = 20
                     if len(metric_data) >= window_size:
                         smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
                         metric_best = smoothed[np.abs(np.array(smoothed) - self._success_metric_to_win).argmin()]

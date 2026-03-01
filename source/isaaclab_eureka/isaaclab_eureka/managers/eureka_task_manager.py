@@ -24,6 +24,9 @@ def _get_rewards(self):
     rewards_eureka, rewards_dict = self._get_rewards_eureka()
     self._eureka_episode_sums["eureka_total_rewards"] += rewards_eureka
     self._eureka_episode_sums["oracle_total_rewards"] += rewards_oracle
+    # rewards_eureka += self._compute_manipulability * m_scale
+    # rewards_dict["manipulability"]= self._compute_manipulability * m_scale
+    # If necessary this part should be exposed to LLM as well
     for key in rewards_dict.keys():
         if key not in self._eureka_episode_sums:
             self._eureka_episode_sums[key] = torch.zeros(self.num_envs, device=self.device)

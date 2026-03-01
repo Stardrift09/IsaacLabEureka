@@ -17,7 +17,7 @@ Your individual_rewards_dict should keys not start with Eureka/ as that will be 
 Make sure any new tensor or variable you introduce is on the same device as self.device.
 The output of the reward function should consist of two items:
     (1) the total reward, which has a dimension of (self.num_envs,) and is a torch.Tensor,
-    (2) a dictionary of each individual reward component.
+    (2) a dictionary of each individual reward component. Important: Each entry in individual_rewards_dict must be the weighted reward term (i.e., weight * raw_reward). Do not return unweighted components.
 The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
 
 Some helpful tips for writing the reward function code:
