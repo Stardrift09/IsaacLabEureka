@@ -75,7 +75,8 @@ Lift it safely, and place it inside the basket. This is a multi-stage, long-hori
 - Release the object so that it falls inside the basket.
         """,
         "success_metric": (
-         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
+         """site_height = self.target_site_corners_world[1,2] - self.target_site_corners_world[0,2]
+    low_enough = self.target_object.data.root_pos_w[env_ids, 2] <site_height
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
     site_pos = self.target_site.data.root_pos_w[env_ids, :2]
     dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
@@ -87,9 +88,9 @@ Lift it safely, and place it inside the basket. This is a multi-stage, long-hori
     },
 
 
+# renaming LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket to 
 
-
-    "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket": {
+    "TestStageAsFeedback": {
         "description": """**Initial condition:**  
 The robot starts with its gripper free. The target object is placed on a table. The basket position is known. The robot must avoid pushing the object away before grasping.
 
@@ -110,7 +111,8 @@ Pick up the target object in a controlled manner, lift it safely, and place it i
 - Position the object above the basket opening.
 - Release the object so that it falls inside the basket.""",
         "success_metric": (
-         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <0.1
+         """site_height = self.target_site_corners_world[1,2] - self.target_site_corners_world[0,2]
+    low_enough = self.target_object.data.root_pos_w[env_ids, 2] <site_height
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
     site_pos = self.target_site.data.root_pos_w[env_ids, :2]
     dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)

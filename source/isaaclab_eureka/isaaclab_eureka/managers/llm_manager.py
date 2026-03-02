@@ -431,11 +431,11 @@ class LLMManager:
                 }
                 return reward, individual_rewards
             """
-            # raw_outputs = [string_to_resume_from for i in range(self._num_suggestions)]
-            # reward_strings = [self.extract_code_from_response(raw_output) for raw_output in raw_outputs]
+            raw_outputs = [string_to_resume_from for i in range(self._num_suggestions)]
+            reward_strings = raw_outputs
                 
-            reward_strings = [string_to_resume_from]
-            raw_outputs = reward_strings            
+            # reward_strings = [string_to_resume_from]
+            # raw_outputs = reward_strings            
             return {"reward_strings": reward_strings, "raw_outputs": raw_outputs}
 
 
