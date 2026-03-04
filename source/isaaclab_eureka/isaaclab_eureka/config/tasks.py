@@ -56,13 +56,13 @@ TASKS_CFG = {
 
 
     "TestPickItUp": {
-        "description": "control the franka arm to pick up the target object without pushing it away or rotating it too much, lift it up, the whole motion should not be too fast, but really smooth and slow",
+        "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly and smoothly to grasp the object, avoiding any pushing or unintended rotation. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. You can detect the current stage and shape reward accordingly",
         "success_metric": (
-         """grasped = self._grasp_detection() # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
-    object_default_state = self.target_object.data.default_root_state.clone()
-    high_enough = self.target_object.data.root_pos_w[:, 2] > object_default_state[:,self.input_direction] + 0.05
-    target_object_current_pose = self.target_object.data.root_quat_w        # shape (N, 4)
-    target_object_desired_pose = object_default_state[:,3:7]         # shape (N, 4)
+         """grasped = self._grasp_detection(env_ids) # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
+    object_default_state = self.target_object.data.default_root_state
+    high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.05
+    target_object_current_pose = self.target_object.data.root_quat_w[env_ids]        # shape (N, 4)
+    target_object_desired_pose = object_default_state[env_ids,3:7]         # shape (N, 4)
     target_object_current_pose_inv = quat_conjugate(target_object_current_pose)
     # relative rotation
     q_error = quat_mul(target_object_desired_pose, target_object_current_pose_inv)
