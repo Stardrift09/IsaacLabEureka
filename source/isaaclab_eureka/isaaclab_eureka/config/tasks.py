@@ -54,6 +54,30 @@ TASKS_CFG = {
     #     "success_metric_tolerance": 0.02,
     # },
 
+
+    "TestPickItUp": {
+        "description": "control the franka arm to pick up the target object without pushing it away or rotating it too much, lift it up, the whole motion should not be too fast, but really smooth and slow",
+        "success_metric": (
+         """grasped = self._grasp_detection() # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
+    object_default_state = self.target_object.data.default_root_state.clone()
+    high_enough = self.target_object.data.root_pos_w[:, 2] > object_default_state[:,self.input_direction] + 0.05
+    target_object_current_pose = self.target_object.data.root_quat_w        # shape (N, 4)
+    target_object_desired_pose = object_default_state[:,3:7]         # shape (N, 4)
+    target_object_current_pose_inv = quat_conjugate(target_object_current_pose)
+    # relative rotation
+    q_error = quat_mul(target_object_desired_pose, target_object_current_pose_inv)
+    angle_error = 2 * torch.acos(torch.clamp(q_error[:, 0], -1.0, 1.0))
+    small_rotation = angle_error < 0.09
+    terminated = small_rotation & high_enough & grasped.bool().squeeze() # about 5 degrees
+    extras['Eureka/success_metric'] = terminated.float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
+
+
+
+
     "TestPutItInTheBasket": {
         "description": """**Initial condition:**  
         The robot gripper rigidly grasps the target object with a stable, non-slipping grasp. The basket (target receptacle) pose is known.
@@ -122,6 +146,9 @@ Pick up the target object in a controlled manner, lift it safely, and place it i
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
     },
+
+
+
 
     "TestStageAsFeedback": {
         "description": """**Initial condition:**  
