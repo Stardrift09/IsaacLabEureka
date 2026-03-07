@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
     parser.add_argument("--no_keep_best_reward", action="store_true", help="Whether to keep the best reward function for better reward generation. It is more costly")
     parser.add_argument("--no_replay", action="store_true", help="Whether replay the task")
-    parser.add_argument("--task", type=str, default="TestPutItInTheBasket", help="Name of the task.")
+    parser.add_argument("--task", type=str, default="TestPickItUp", help="Name of the task.")
     parser.add_argument(
         "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
     )
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_training_iterations",
         type=int,   
-        default=1500,
+        default=3000,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         default=1,
         help="Controls the randomness of the GPT output (0 is deterministic, 1 is highly diverse).",
     )
-    parser.add_argument("--gpt_model", type=str, default="gpt-5.2", help="The GPT model to use.")
+    parser.add_argument("--gpt_model", type=str, default="gpt-5.4", help="The GPT model to use.")
     parser.add_argument(
         "--rl_library",
         type=str,

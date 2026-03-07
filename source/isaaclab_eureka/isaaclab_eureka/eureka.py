@@ -259,7 +259,7 @@ class Eureka:
                 # Best metric is the one closest to the target
                 # Smooth the data with a moving average to get a stable max
                 if self.smooth_metric:
-                    window_size = 20
+                    window_size = 100
                     if len(metric_data) >= window_size:
                         smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
                         metric_best = smoothed[np.abs(np.array(smoothed) - self._success_metric_to_win).argmin()]
