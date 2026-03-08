@@ -56,12 +56,21 @@ TASKS_CFG = {
 
 
     "TestPickItUp": {
-        "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly while keeping the gripper open to avoid collision.  When the object center is close to the gripper tcp, close the gripper to grasp the object, avoiding any pushing. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. You can detect the current stage and shape reward accordingly.",
+        "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly until the object center is close to the gripper tcp. Close the gripper to grasp the object, avoiding any pushing or unintended rotation. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. You can detect the current stage and shape reward accordingly.",
         "success_metric": (
          """grasped = self._grasp_detection(env_ids) # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
     object_default_state = self.target_object.data.default_root_state
-    high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.05
-    terminated = high_enough & grasped.bool().squeeze() # about 5 degrees
+    high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.1
+    target_object_current_pose = self.target_object.data.root_quat_w[env_ids]        # shape (N, 4)
+    target_object_desired_pose = object_default_state[env_ids,3:7]         # shape (N, 4)
+    target_object_current_pose_inv = quat_conjugate(target_object_current_pose)
+    # relative rotation
+    q_error = quat_mul(target_object_desired_pose, target_object_current_pose_inv)
+    q_error = q_error / torch.norm(q_error, dim=-1, keepdim=True).clamp_min(1e-9)
+    q_error = torch.where(q_error[:, 0:1] < 0, -q_error, q_error)
+    angle_error = 2 * torch.acos(torch.clamp(q_error[:, 0], -1.0, 1.0))
+    small_rotation = angle_error < 0.09
+    terminated = small_rotation & high_enough & grasped.bool().squeeze() & small_rotation # about 5 degrees
     extras['Eureka/success_metric'] = terminated.float().mean()"""
         ),
         "success_metric_to_win": 1.0,

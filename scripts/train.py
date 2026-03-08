@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_training_iterations",
         type=int,   
-        default=3000,
+        default=1500,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(
