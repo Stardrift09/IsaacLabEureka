@@ -18,7 +18,6 @@ Make sure any new tensor or variable you introduce is on the same device as self
 The output of the reward function should consist of two items:
     (1) the total reward, which has a dimension of (self.num_envs,) and is a torch.Tensor,
     (2) a dictionary of each individual reward component. Important: Each entry in individual_rewards_dict must be the weighted reward term (i.e., weight * raw_reward). Do not return unweighted components.
-    (3) If needed, you may also include important intermediate variables or diagnostic values in the reward dictionary for analysis in later iterations. However, these should not be confused with reward terms. Use a distinct naming prefix (e.g.,info_) to clearly differentiate them from actual reward components.
 The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
 
 Some helpful tips for writing the reward function code:
@@ -72,8 +71,8 @@ REPLAY_FEEDBACK_PROMPT = """We provide you the output of the reward function on 
 {replay_feedback_string}"""
 
 
-BEST_ITERATION_FEEDBACK_PROMPT = """The best reward function we have so far has the following feedback string: 
-success metric: {success_metric}
+BEST_ITERATION_FEEDBACK_PROMPT = """We also keep track of the best reward function in last iterations. The best reward function we have so far has the following feedback string: 
+task score: {success_metric}
 reward function: {gpt_reward_method}
 Task feedback: {task_feedback}
 """
