@@ -55,28 +55,64 @@ TASKS_CFG = {
     # },
 
 
+
+    # THE VERSION THAT IS ABLE TO GRASP THE OBJECT UPSTRAIGHT
+
+    # "TestPickItUp": {
+    #     "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly while keeping the gripper open to avoid collision.  When the object center is close to the gripper tcp, close the gripper to grasp the object, avoiding any pushing. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. Important: avoid being stuck by local minima by carefully designing reward terms.",
+    #     "success_metric": (
+    #      """grasped = self._grasp_detection(env_ids) # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
+    # object_default_state = self.target_object.data.default_root_state
+    # high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.1
+    # target_object_current_pose = self.target_object.data.root_quat_w[env_ids]        # shape (N, 4)
+    # target_object_desired_pose = object_default_state[env_ids,3:7]         # shape (N, 4)
+    # target_object_current_pose_inv = quat_conjugate(target_object_current_pose)
+    # # relative rotation
+    # q_error = quat_mul(target_object_desired_pose, target_object_current_pose_inv)
+    # q_error = q_error / torch.norm(q_error, dim=-1, keepdim=True).clamp_min(1e-9)
+    # q_error = torch.where(q_error[:, 0:1] < 0, -q_error, q_error)
+    # angle_error = 2 * torch.acos(torch.clamp(q_error[:, 0], -1.0, 1.0))
+    # small_rotation = angle_error < 0.8
+    # terminated = small_rotation & high_enough & grasped.bool().squeeze()
+    # extras['Eureka/success_metric'] = terminated.float().mean()"""
+    #     ),
+    #     "success_metric_to_win": 1.0,
+    #     "success_metric_tolerance": 0.05,
+    # },
+
+
     "TestPickItUp": {
-        "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly while keeping the gripper open to avoid collision.  When the object center is close to the gripper tcp, close the gripper to grasp the object, avoiding any pushing. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. Important: avoid being stuck by local minima by carefully designing reward terms",
+        "description": """**Initial condition:**  
+        The robot gripper rigidly grasps the target object with a stable, non-slipping grasp. The basket (target receptacle) pose is known.
+
+**Objective:**  
+Lift it safely, and place it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress. Add regularization on the robot action, avoid singularity and weird motion.
+
+## Task sequence and constraints
+
+### 1) Hold
+- Make sure a stable grasp before lifting.
+
+### 2) Lift
+- Move the grasped object horizontally toward the basket.
+- Keep the motion smooth and controlled.
+
+### 4) Place
+- Position the object above the basket opening.
+- Release the object so that it falls inside the basket.
+        """,
         "success_metric": (
-         """grasped = self._grasp_detection(env_ids) # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
-    object_default_state = self.target_object.data.default_root_state
-    high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.1
-    target_object_current_pose = self.target_object.data.root_quat_w[env_ids]        # shape (N, 4)
-    target_object_desired_pose = object_default_state[env_ids,3:7]         # shape (N, 4)
-    target_object_current_pose_inv = quat_conjugate(target_object_current_pose)
-    # relative rotation
-    q_error = quat_mul(target_object_desired_pose, target_object_current_pose_inv)
-    q_error = q_error / torch.norm(q_error, dim=-1, keepdim=True).clamp_min(1e-9)
-    q_error = torch.where(q_error[:, 0:1] < 0, -q_error, q_error)
-    angle_error = 2 * torch.acos(torch.clamp(q_error[:, 0], -1.0, 1.0))
-    small_rotation = angle_error < 0.8
-    terminated = small_rotation & high_enough & grasped.bool().squeeze()
-    extras['Eureka/success_metric'] = terminated.float().mean()"""
+         """site_height = self.target_site_corners_world[1,2] - self.target_site_corners_world[0,2]
+    low_enough = self.target_object.data.root_pos_w[env_ids, 2] <site_height
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
         ),
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
     },
-
 
 
 
