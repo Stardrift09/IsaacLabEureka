@@ -159,7 +159,7 @@ class Eureka:
                         )
                     else:
                         replay_eureka_task_feedback = ""
-                    if self.keep_best_reward and best_run_results["success_metric"] is not None and best_run_results["success_metric"] > 0.3:
+                    if self.keep_best_reward and best_run_results["success_metric"] is not None and best_run_results["success_metric"] > 0.1:
                         best_iter_feeback = BEST_ITERATION_FEEDBACK_PROMPT.format(
                             success_metric=best_run_results["success_metric"],
                             gpt_reward_method=best_run_results["gpt_reward_method"],
