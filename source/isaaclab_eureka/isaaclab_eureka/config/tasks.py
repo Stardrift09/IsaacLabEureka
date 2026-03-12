@@ -82,24 +82,7 @@ TASKS_CFG = {
 
 
     "TestPickItUp": {
-        "description": """**Initial condition:**  
-        The robot gripper rigidly grasps the target object with a stable, non-slipping grasp. The basket (target receptacle) pose is known.
-
-**Objective:**  
-Lift it safely, and place it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress. Add regularization on the robot action, avoid singularity and weird motion.
-
-## Task sequence and constraints
-
-### 1) Hold
-- Make sure a stable grasp before lifting.
-
-### 2) Lift
-- Move the grasped object horizontally toward the basket.
-- Keep the motion smooth and controlled.
-
-### 4) Place
-- Position the object above the basket opening.
-- Release the object so that it falls inside the basket.
+        "description": """Pick up the object, move to above the basket, and drop it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress if necessary.
         """,
         "success_metric": (
          """site_height = self.target_site_corners_world[1,2] - self.target_site_corners_world[0,2]

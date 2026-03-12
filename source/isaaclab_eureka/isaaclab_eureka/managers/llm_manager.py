@@ -82,6 +82,7 @@ class LLMManager:
             self.resume=False
             try:
                 string_to_resume_from = """def _get_rewards_eureka(self) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    # VERY IMPORTANT!!!!!!!!!! This reward is able to lift the object already, but the object rotates more or less, improve the new reward function based on this!
     import torch
 
     device = self.device
