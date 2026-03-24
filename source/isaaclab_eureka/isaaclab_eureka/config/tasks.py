@@ -61,7 +61,7 @@ TASKS_CFG = {
     # "TestPickItUp": {
     #     "description": "Control the Franka arm to first move to a point 10 cm above the target object position while aligning precisely with the target orientation. Then descend slowly while keeping the gripper open to avoid collision.  When the object center is close to the gripper tcp, close the gripper to grasp the object, avoiding any pushing. After securing the grasp, lift the object gently. Ensure the entire motion is slow, stable, and well-controlled. Important: avoid being stuck by local minima by carefully designing reward terms.",
     #     "success_metric": (
-    #      """grasped = self._grasp_detection(env_ids) # [num_envs, 1] 1 means two fingers have contact force against object, thereby grasping
+    #      """grasped = self._grasp_detection(env_ids) # [num_envs] 1 means two fingers have contact force against object, thereby grasping
     # object_default_state = self.target_object.data.default_root_state
     # high_enough = self.target_object.data.root_pos_w[env_ids, 2] > object_default_state[env_ids,self.input_direction] + 0.1
     # target_object_current_pose = self.target_object.data.root_quat_w[env_ids]        # shape (N, 4)
@@ -73,7 +73,7 @@ TASKS_CFG = {
     # q_error = torch.where(q_error[:, 0:1] < 0, -q_error, q_error)
     # angle_error = 2 * torch.acos(torch.clamp(q_error[:, 0], -1.0, 1.0))
     # small_rotation = angle_error < 0.8
-    # terminated = small_rotation & high_enough & grasped.bool().squeeze()
+    # terminated = small_rotation & high_enough & grasped
     # extras['Eureka/success_metric'] = terminated.float().mean()"""
     #     ),
     #     "success_metric_to_win": 1.0,
@@ -83,11 +83,9 @@ TASKS_CFG = {
 
     "TestPickItUp": {
         "description": """Pick up the object, move to above the basket, and drop it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress if necessary.
-        Do not shape reward for next stage before the previous stage is well finished!
         """,
         "success_metric": (
-         """site_height = self.target_site_corners_world[1,2] - self.target_site_corners_world[0,2]
-    low_enough = self.target_object.data.root_pos_w[env_ids, 2] <site_height
+         """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <self.target_site_corners_world[1,2]
     obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
     site_pos = self.target_site.data.root_pos_w[env_ids, :2]
     dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
