@@ -1,6 +1,6 @@
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=TestPutItInTheBasket --headless
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=TestPickItUp --headless --seed=42
 
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=TestPutItInTheBasket --num_envs=20  --video --video_length=1000
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=TestPickItUp --num_envs=20  --video --video_length=1500
 
 ssh go49lov2@cool.hpc.lrz.de
 

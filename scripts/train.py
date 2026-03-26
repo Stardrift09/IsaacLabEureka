@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--temperature",
         type=float,
-        default=1,
+        default=0.4,
         help="Controls the randomness of the GPT output (0 is deterministic, 1 is highly diverse).",
     )
     parser.add_argument("--gpt_model", type=str, default="gpt-5.4", help="The GPT model to use.")

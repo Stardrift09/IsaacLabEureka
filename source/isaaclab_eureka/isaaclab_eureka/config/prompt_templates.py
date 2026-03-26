@@ -17,7 +17,7 @@ Your individual_rewards_dict should keys not start with Eureka/ as that will be 
 Make sure any new tensor or variable you introduce is on the same device as self.device.
 The output of the reward function should consist of two items:
     (1) the total reward, which has a dimension of (self.num_envs,) and is a torch.Tensor,
-    (2) a dictionary of each individual reward component. Important: Each entry in individual_rewards_dict must be the weighted reward term (i.e., weight * raw_reward). Do not return unweighted components.
+    (2) a dictionary of each individual, unweighted reward component. The reward components should be designed to be informative, enabling identification of where the policy fails and providing actionable insights for improving the reward function.
 The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
 
 Some helpful tips for writing the reward function code:
@@ -27,6 +27,7 @@ Some helpful tips for writing the reward function code:
     (4) Make sure the type of each input variable is correctly specified; a float input variable should not be specified as torch.Tensor
     (5) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
     (6) Robot joint limits are give as self.robot_dof_upper_limits and self.robot_dof_lower_limits, 1D tensor vector with 9 elements. Have correct penalty to avoid being close to joint limits!
+    (7) For long-horizon tasks, when stage information is available, leave the previous stages unchanged unless intervention is necessary.
     """
 
 
@@ -49,12 +50,15 @@ We trained a RL policy using the provided reward function code and tracked the v
 
 TASK_SUCCESS_POST_FEEDBACK_PROMPT = """
 Please carefully analyze the feedback and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
-    (1) If the success rates are always near zero, then you can consider rewrite the entire reward function
-    (2) If the values for a certain reward component are near identical throughout, then this means RL is not able to optimize this component as it is written. You may consider
+    (1) For long-horizon tasks, low overall success rate at early stages of training is expected!
+        Instead, check whether intermediate reward components or stage indicators show meaningful improvement.
+        If no stage progress is observed, consider redesigning reward terms and finish sub-stage goals step by step.
+    (2) For long-horizon tasks, carefully analyse the result and answer what could be the reason for failure. Based on the analysis, improve your reward function for corresonding stage, and reshape previous stage rewards only when necessary.
+    (3) If the values for a certain reward component are near identical throughout, then this means RL is not able to optimize this component as it is written. You may consider
         (a) Changing its scale or the value of its temperature parameter
         (b) Re-writing the reward component
         (c) Discarding the reward component
-    (3) If some reward components' magnitude is significantly larger, then you must re-scale its value to a proper range
+    (4) If some reward components' magnitude is significantly larger, then you must re-scale its value to a proper range
 Please analyze each existing reward component in the suggested manner above first, and then write the reward function code.
 """ + DIRECT_WORKFLOW_REWARD_FORMATTING_INSTRUCTIONS
 

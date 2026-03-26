@@ -58,6 +58,8 @@ class Eureka:
 
         # Load the task description and success metric
         self._debug = True
+        self.consider_stage_in_success_metric = True
+        self.num_stages=5
         self.keep_best_reward = keep_best_reward
         self.smooth_metric = True
         self.replay = replay
@@ -248,6 +250,9 @@ class Eureka:
         success_metric_max = None
         # Make a summary of each plot in the tensorboard logs
         total_feed_back_string = ""
+        if self.consider_stage_in_success_metric:
+            stage_weights = [0.0, 0.05, 0.1, 0.3, 1.0] # The last one is not used
+            stage_dict = {}
         for metric_name, metric_data in data.items():
             if "Eureka/" in metric_name:
                 # Remove the first two data points as they are usually outliers
@@ -258,16 +263,11 @@ class Eureka:
                 metric_mean = sum(metric_data) / len(metric_data)
                 # Best metric is the one closest to the target
                 # Smooth the data with a moving average to get a stable max
-                if self.smooth_metric:
-                    window_size = 100
-                    if len(metric_data) >= window_size:
-                        smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
-                        metric_best = smoothed[np.abs(np.array(smoothed) - self._success_metric_to_win).argmin()]
-                    else:
-                        metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
-                if metric_name == "success_metric":
-                    metric_name = "task_score"
-                    success_metric_max = metric_best
+                
+                if metric_name == "success_metric": # if not considering multiple stages: then use success metric as the only judge
+                    if not self.consider_stage_in_success_metric: # success metric is only task score when stages are not used
+                        metric_name = "task_score"
+                    success_metric_max = self._compute_best_metric(metric_data)
                 data_string = [f"{data:.2f}" for data in metric_data[::feedback_subsampling]]
                 feedback_string = (
                     f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
@@ -278,6 +278,39 @@ class Eureka:
                     feedback_string = ""
                 total_feed_back_string += feedback_string
 
+                # If using stages for task score: do the following:
+                if self.consider_stage_in_success_metric:
+                    if metric_name == "success_metric":
+                        stage_dict["success_metric"] = metric_data
+                    elif metric_name.startswith("stage_"):
+                        stage_dict[metric_name] = metric_data
+
+        if self.consider_stage_in_success_metric:
+            metric_name = "task_score"
+            # Build weighted stage score dict
+            weighted_metric_data = np.zeros(len(stage_dict["success_metric"]))
+            for key, metric_data in stage_dict.items():
+                if key == "success_metric":
+                    weighted_metric_data += np.array(metric_data)
+                if key.startswith("stage_"):
+                    try:
+                        stage_idx = int(key.split("stage_")[-1])
+                        if 0 < stage_idx < len(stage_weights):
+                            weighted_metric_data += np.array(metric_data) * stage_weights[stage_idx-1]
+                    except ValueError:
+                        continue
+            success_metric_max = self._compute_best_metric(weighted_metric_data)
+            metric_min = min(weighted_metric_data)
+            metric_max = max(weighted_metric_data)
+            metric_mean = sum(weighted_metric_data) / len(weighted_metric_data)
+            data_string = [f"{data:.2f}" for data in weighted_metric_data[::feedback_subsampling]]
+            feedback_string = (
+                f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
+                f" {metric_mean:.2f} \n"
+            )
+            feedback_string = "For long horizon task, task score is weighted average of stages and success nad the best is picked:\n" + feedback_string
+            total_feed_back_string += feedback_string
+            
         total_feed_back_string += f"\nThe desired task_score to win is: {self._success_metric_to_win:.2f}\n"
         return total_feed_back_string, success_metric_max, rewards_correlation
 
@@ -352,3 +385,15 @@ class Eureka:
                 replay_feed_back_string += feedback_string
         full_replay_feedback_string = REPLAY_FEEDBACK_PROMPT.format(replay_feedback_string=replay_feed_back_string)
         return full_replay_feedback_string
+    
+
+    def _compute_best_metric(self,metric_data) -> float:
+        import numpy as np
+        if self.smooth_metric:
+            window_size = 100
+            if len(metric_data) >= window_size:
+                smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
+                metric_best = smoothed[np.abs(smoothed - self._success_metric_to_win).argmin()]
+            else:
+                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
+        return metric_best

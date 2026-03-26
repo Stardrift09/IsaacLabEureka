@@ -90,7 +90,15 @@ TASKS_CFG = {
     site_pos = self.target_site.data.root_pos_w[env_ids, :2]
     dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
     inside_site = dist2 < self.target_site_radius**2
-    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
+
+    success = inside_site & low_enough
+    stage_masked = self.stage[env_ids].clone()
+    stage_masked = stage_masked * (~success).unsqueeze(-1)
+    for i in range(1, self.num_stages): # Log stages except for stage 0
+        extras[f'Eureka/stage_{i}'] = (stage_masked[:,i]).float().mean()
+
+    extras['Eureka/success_metric'] = (success).float().mean()
+    """
         ),
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
@@ -125,7 +133,14 @@ Lift it safely, and place it inside the basket. This is a multi-stage, long-hori
     site_pos = self.target_site.data.root_pos_w[env_ids, :2]
     dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
     inside_site = dist2 < self.target_site_radius**2
-    extras['Eureka/success_metric'] = (inside_site & low_enough).float().mean()"""
+
+    success = inside_site & low_enough
+    stage_masked = self.stage[env_ids].clone()
+    stage_masked = stage_masked * (~success).unsqueeze(-1)
+    for i in range(1, self.num_stages): # Log stages except for stage 0
+        extras[f'Eureka/stage_{i}'] = (stage_masked[:,i]).float().mean()
+
+    extras['Eureka/success_metric'] = success.float().mean()"""
         ),
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
