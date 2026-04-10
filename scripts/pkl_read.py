@@ -53,7 +53,8 @@ from openai import OpenAI
 client = OpenAI()
 
 response = client.responses.create(
-    model="gpt-5.2",
+    model="gpt-5.4",
+    # reasoning={"effort": "high"},
     input=
     """
 I am calculating reward:

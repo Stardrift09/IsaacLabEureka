@@ -12,8 +12,8 @@ import time
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Literal
-
-from isaaclab_eureka.utils import MuteOutput, get_freest_gpu
+import torch
+from isaaclab_eureka.utils import MuteOutput, get_freest_gpu, eureka_root_dir
 
 TEMPLATE_REWARD_STRING = """
 from {module_name} import *
@@ -67,6 +67,7 @@ class EurekaTaskManager:
     def __init__(
         self,
         task: str,
+        checkpoint_to_resume_from: str | None,
         rl_library: Literal["rsl_rl", "rl_games"] = "rsl_rl",
         num_processes: int = 1,
         device: str = "cuda",
@@ -87,6 +88,7 @@ class EurekaTaskManager:
             success_metric_string: A string that represents an expression to calculate the success metric for the task.
         """
         self._task = task
+        self.checkpoint_to_resume_from = checkpoint_to_resume_from
         self._rl_library = rl_library
         self._num_processes = num_processes
         self._device = device
@@ -176,7 +178,6 @@ class EurekaTaskManager:
         while not self.termination_event.is_set():
             if not hasattr(self, "_env"):
                 self._create_environment()
-
                 # Fetch the environment's _get_observations method and send it to the main process
                 if self._idx == 0 and not hasattr(self, "_observation_string"):
                     self._observation_string = inspect.getsource(self._env.unwrapped._get_observations)
@@ -217,9 +218,10 @@ class EurekaTaskManager:
         if self._device == "cuda":
             device_id = get_freest_gpu()
             self._device = f"cuda:{device_id}"
-        app_launcher = AppLauncher(headless=True, device=self._device)
+        app_launcher = AppLauncher(headless=True, device=self._device, enable_cameras=True) # enable if using VLM to provide feedback
         self._simulation_app = app_launcher.app
-
+        time.sleep(10)
+        print("app launched")
         import gymnasium as gym
         import isaaclab_tasks  # noqa: F401
         from isaaclab.envs import DirectRLEnvCfg
@@ -228,8 +230,9 @@ class EurekaTaskManager:
         env_cfg: DirectRLEnvCfg = parse_env_cfg(self._task)
         env_cfg.sim.device = self._device
         env_cfg.seed = self._env_seed
+        print("cfg")
         self._env = gym.make(self._task, cfg=env_cfg)
-
+        print("env made")
     def _prepare_eureka_environment(self, get_rewards_method_as_string: str):
         """Prepare the environment for training with the Eureka-generated reward function.
 
@@ -238,7 +241,7 @@ class EurekaTaskManager:
         oracle reward functions. It also sets the environment's _reset_idx method to a template method that updates the
         episodic sum of the Eureka-generated rewards.
         """
-        import torch
+        
 
         env = self._env.unwrapped
         namespace = {}
@@ -296,7 +299,7 @@ class EurekaTaskManager:
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
             # specify directory for logging runs: {time-stamp}_{run_name}
 
-            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}" + host_name
+            log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_Run-{self._idx}" + "_" + host_name
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
             self._log_dir = os.path.join(log_root_path, log_dir)
@@ -304,8 +307,20 @@ class EurekaTaskManager:
                 env.run_replay(self._log_dir)
             env = RslRlVecEnvWrapper(self._env)
             runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=self._log_dir, device=agent_cfg.device)
+            if self.checkpoint_to_resume_from:
+                assert os.path.isfile(self.checkpoint_to_resume_from), \
+                    f"Checkpoint not found: {self.checkpoint_to_resume_from}"
+                runner.load(self.checkpoint_to_resume_from)
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+            # run everything in inference mode
 
+            pic_save_dir = os.path.join(self._log_dir, "pictures")
+            with torch.inference_mode():
+                output_text = self._env.unwrapped.run_single_traj_and_get_vlm_feedback(runner.alg.policy, runner.get_inference_policy(device=env.unwrapped.device), pic_save_dir)
+            output_file = os.path.join(self._log_dir, "vlm_output.txt")
+            with open(output_file, "w") as f:
+                f.write(output_text)
+                
         elif self._rl_library == "rl_games":
             from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
             from rl_games.common import env_configurations, vecenv

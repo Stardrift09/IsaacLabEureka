@@ -37,6 +37,15 @@ Your goal is to write a reward function for the environment that will help the a
 """ + DIRECT_WORKFLOW_REWARD_FORMATTING_INSTRUCTIONS
 
 
+DIRECT_WORKFLOW_INITIAL_PROMPT_CURRICULUM = """
+You are a reward engineer designing reward functions for curriculum learning.
+
+The provided checkpoint already enables the agent to successfully hover above the target object(stage 4). Your task is to design a reward function that builds on top of this capability and do the last stage task: dropping the object and make sure it falls in the basket.
+
+Focus on shaping rewards that progressively encourage the next stages of the behavior, ensuring smooth learning transitions from the current capability to the final objective.
+""" + DIRECT_WORKFLOW_REWARD_FORMATTING_INSTRUCTIONS
+
+
 TASK_FAILURE_FEEDBACK_PROMPT = """
 Executing the reward function code above has the following error: {traceback_msg}.
 Please fix the bug and provide a new, improved reward function!
@@ -46,20 +55,67 @@ Please fix the bug and provide a new, improved reward function!
 TASK_SUCCESS_PRE_FEEDBACK_PROMPT = """
 We trained a RL policy using the provided reward function code and tracked the values of the individual components in the reward function as well as global policy metrics such as success rates and episode lengths after every {feedback_subsampling} epochs and the maximum, mean, minimum values encountered:
 """
-
+LLM_TASK_FEEDBACK_PROMPT = """In addition, we also have the following feedback string from a vision-language model that analyzes the policy's output videos:
+{llm_task_feedback}
+"""
 
 TASK_SUCCESS_POST_FEEDBACK_PROMPT = """
-Please carefully analyze the feedback and provide a new, improved reward function that can better solve the task. Some helpful tips for analyzing the policy feedback:
-    (1) For long-horizon tasks, low overall success rate at early stages of training is expected!
-        Instead, check whether intermediate reward components or stage indicators show meaningful improvement.
-        If no stage progress is observed, consider redesigning reward terms and finish sub-stage goals step by step.
-    (2) For long-horizon tasks, carefully analyse the result and answer what could be the reason for failure. Based on the analysis, improve your reward function for corresonding stage, and reshape previous stage rewards only when necessary.
-    (3) If the values for a certain reward component are near identical throughout, then this means RL is not able to optimize this component as it is written. You may consider
-        (a) Changing its scale or the value of its temperature parameter
-        (b) Re-writing the reward component
-        (c) Discarding the reward component
-    (4) If some reward components' magnitude is significantly larger, then you must re-scale its value to a proper range
-Please analyze each existing reward component in the suggested manner above first, and then write the reward function code.
+Please carefully analyze the feedback and provide a new, improved reward function that can better solve the task.
+
+Important context:
+- The reported statistics are aggregated over ALL parallel environments.
+- Values correspond to environments that have finished episodes at that iteration.
+
+When analyzing:
+- It is acceptable to focus on the dominant (majority) behavior reflected in the statistics.
+- You do NOT need to infer rare edge cases or hidden distributions.
+- However, your interpretation of the statistics must be logically correct and consistent with the observed values.
+
+Core objective:
+- The goal is to make the agent successfully complete the task.
+- Improving reward components is a means to this goal, NOT the goal itself.
+
+Guidelines for analysis:
+
+(1) Task-first reasoning:
+    - Always prioritize whether the current policy is progressing toward solving the task.
+    - Identify what is preventing task completion (e.g., not lifting high enough, not moving to target, unstable grasp).
+    - Focus on fixing these bottlenecks.
+
+(2) Reward components:
+    - Only modify reward components if they are clearly:
+        * Misaligned with the task
+        * Not providing useful gradients
+        * Causing incorrect behavior
+    - Avoid unnecessary tuning if the reward already supports correct behavior.
+
+(3) Long-horizon tasks:
+    - Low success rate early is expected.
+    - Focus on whether meaningful stage progress is happening.
+    - If the agent is stuck, redesign rewards to better guide the next stage.
+
+(4) Flat or ineffective rewards:
+    - If a reward component stays nearly constant, it is not being optimized.
+    - Consider:
+        (a) Rescaling
+        (b) Reformulating
+        (c) Removing it
+
+(5) Reward scaling:
+    - Ensure no single reward dominates excessively.
+    - Maintain a balance so all relevant signals contribute to learning.
+
+(6) Stage-based reasoning:
+    - Identify which stage the agent is currently stuck in.
+    - Improve rewards that directly help transition to the next stage.
+    - Avoid over-tuning earlier stages unless they block progress.
+
+Instructions:
+- First, analyze the current behavior and identify the main failure point in solving the task.
+- Then, evaluate which reward components are responsible for this failure (if any).
+- Finally, propose a revised reward function that improves task completion.
+
+Focus on practical improvements that help the agent succeed, rather than purely optimizing reward metrics.
 """ + DIRECT_WORKFLOW_REWARD_FORMATTING_INSTRUCTIONS
 
 

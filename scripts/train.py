@@ -22,6 +22,7 @@ def main(args_cli):
         print("Current task doesn't have successful demos, setting replay to False")
     eureka = Eureka(
         task=args_cli.task,
+        checkpoint_to_resume_from=args_cli.checkpoint_to_resume_from,
         rl_library=args_cli.rl_library,
         num_parallel_runs=args_cli.num_parallel_runs,
         device=args_cli.device,
@@ -43,16 +44,17 @@ if __name__ == "__main__":
     parser.add_argument("--no_keep_best_reward", action="store_true", help="Whether to keep the best reward function for better reward generation. It is more costly")
     parser.add_argument("--no_replay", action="store_true", help="Whether replay the task")
     parser.add_argument("--task", type=str, default="TestPickItUp", help="Name of the task.")
+    parser.add_argument("--checkpoint_to_resume_from", type=str, default="/home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/logs/rsl_rl/test_pick_it_up/2026-03-26_20-00-25/model_1499.pt", help="Path to the checkpoint where the training should resume from")
     parser.add_argument(
         "--num_parallel_runs", type=int, default=1, help="Number of Eureka runs to execute in parallel."
     )
     parser.add_argument("--device", type=str, default="cuda", help="The device to run training on.")
     parser.add_argument("--env_seed", type=int, default=42, help="The random seed to use for the environment.")
-    parser.add_argument("--max_eureka_iterations", type=int, default=20, help="The number of Eureka iterations to run.")
+    parser.add_argument("--max_eureka_iterations", type=int, default=15, help="The number of Eureka iterations to run.")
     parser.add_argument(
         "--max_training_iterations",
         type=int,   
-        default=3000,
+        default=1500,
         help="The number of RL training iterations to run for each Eureka iteration.",
     )
     parser.add_argument(
@@ -64,7 +66,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.4,
+        default=1,
         help="Controls the randomness of the GPT output (0 is deterministic, 1 is highly diverse).",
     )
     parser.add_argument("--gpt_model", type=str, default="gpt-5.4", help="The GPT model to use.")
@@ -78,7 +80,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume training from checkpoint"
+        help="Resume training from a certain reward function"
     )
     args_cli = parser.parse_args()
 

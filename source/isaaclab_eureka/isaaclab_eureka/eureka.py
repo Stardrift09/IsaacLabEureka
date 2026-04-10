@@ -11,10 +11,13 @@ from isaaclab.app import AppLauncher
 from isaaclab_eureka import EUREKA_ROOT_DIR
 from isaaclab_eureka.config import (
     DIRECT_WORKFLOW_INITIAL_PROMPT,
+    DIRECT_WORKFLOW_INITIAL_PROMPT_CURRICULUM,
     DIRECT_WORKFLOW_TASK_PROMPT,
     TASK_FAILURE_FEEDBACK_PROMPT,
-    TASK_SUCCESS_POST_FEEDBACK_PROMPT,
+
     TASK_SUCCESS_PRE_FEEDBACK_PROMPT,
+    LLM_TASK_FEEDBACK_PROMPT,
+    TASK_SUCCESS_POST_FEEDBACK_PROMPT,
     TASKS_CFG,
     REPLAY_FEEDBACK_PROMPT,
     BEST_ITERATION_FEEDBACK_PROMPT,
@@ -29,6 +32,7 @@ class Eureka:
     def __init__(
         self,
         task: str,
+        checkpoint_to_resume_from: str | None,
         device: str = "cuda",
         env_seed: int = 42,
         rl_library: Literal["rsl_rl", "rl_games"] = "rsl_rl",
@@ -76,7 +80,8 @@ class Eureka:
         self._task_description = task_description
         self._feedback_subsampling = feedback_subsampling
         self._num_processes = num_parallel_runs
-
+        import multiprocessing
+        multiprocessing.set_start_method("spawn")
         print("[INFO]: Setting up the LLM Manager...")
         self._llm_manager = LLMManager(
             gpt_model=gpt_model,
@@ -89,6 +94,7 @@ class Eureka:
         print("[INFO]: Setting up the Task Manager...")
         self._task_manager = EurekaTaskManager(
             task=task,
+            checkpoint_to_resume_from=checkpoint_to_resume_from,
             device=device,
             env_seed=env_seed,
             rl_library=rl_library,
@@ -155,6 +161,10 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
+                    vlm_output_file = os.path.join(result["log_dir"], "vlm_output.txt")
+                    with open(vlm_output_file, "r") as f:
+                        llm_task_feedback = f.read()
+
                     if self.replay:
                         replay_eureka_task_feedback = self._get_replay_task_feedback(
                             result["log_dir"]
@@ -173,6 +183,7 @@ class Eureka:
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
+                        + LLM_TASK_FEEDBACK_PROMPT.format(llm_task_feedback=llm_task_feedback)
                         + replay_eureka_task_feedback
                         + best_iter_feeback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT

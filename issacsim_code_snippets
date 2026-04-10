@@ -1,0 +1,12 @@
+from omni.isaac.core.utils.stage import get_current_stage
+
+stage = get_current_stage()
+
+for prim in stage.Traverse():
+    print(prim.GetPath())
+
+
+
+
+    from omni.isaac.core.utils.prims import get_prim_at_path
+    print(get_prim_at_path("/World/envs/env_0/Robot").GetChildren())

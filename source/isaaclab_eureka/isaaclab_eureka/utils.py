@@ -63,9 +63,9 @@ def read_pkl(path):
     with open(path, "rb") as f: 
         data = pickle.load(f)
         if debug: 
-            print(type(data))
-            print(data.keys())
-            print(len(data["franka"])) # 50
+            # print(type(data))
+            # print(data.keys())
+            # print(len(data["franka"])) # 50
 
             # print(data["metadata"])
             # {'task_name': 'libero_90_kitchen_scene2_open_the_top_drawer_of_the_cabinet',
@@ -78,9 +78,10 @@ def read_pkl(path):
             # print(data['franka'][0]["init_state"]['franka']["dof_pos"])
             # print(data['franka'][0]["init_state"]["basket"])
             # print(data['franka'][0]["actions"])
-            print(data['franka'][0]["states"][0]["franka"])
-            # for i in range(1):
-            #     print(data['franka'][i]["init_state"]['franka']["dof_pos"])
+            for i in range(len(data['franka'][0]["states"])):
+                print(data['franka'][0]["states"][i]["franka"])
+            # for i in range(50):
+            #     print(len(data['franka'][i]["states"]))
     return data
 
 
@@ -89,7 +90,7 @@ def eureka_root_dir():
 
 
 if __name__ == "__main__":
-    # path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
-    # read_pkl(path=path)
+    path = 'libero/trajs/libero90/libero_90_living_room_scene1_pick_up_the_alphabet_soup_and_put_it_in_the_basket_traj_v2.pkl'
+    read_pkl(path=path)
     # print(eureka_root_dir())
-    get_freest_gpu()
+    # get_freest_gpu()

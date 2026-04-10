@@ -81,8 +81,33 @@ TASKS_CFG = {
     # },
 
 
+    # "TestPickItUp": {
+    #     "description": """Pick up the object, move to above the basket, and drop it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress if necessary.
+    #     """,
+    #     "success_metric": (
+    #      """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <self.target_site_corners_world[1,2]
+    # obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    # site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    # dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    # inside_site = dist2 < self.target_site_radius**2
+
+    # success = inside_site & low_enough
+    # stage_masked = self.stage[env_ids].clone()
+    # stage_masked = stage_masked * (~success).unsqueeze(-1)
+    # for i in range(1, self.num_stages): # Log stages except for stage 0
+    #     extras[f'Eureka/stage_{i}'] = (stage_masked[:,i]).float().mean()
+
+    # extras['Eureka/success_metric'] = (success).float().mean()
+    # """
+    #     ),
+    #     "success_metric_to_win": 1.0,
+    #     "success_metric_tolerance": 0.05,
+    # },
+
+
+    # This one is for curriculum learning.
     "TestPickItUp": {
-        "description": """Pick up the object, move to above the basket, and drop it inside the basket. This is a multi-stage, long-horizon task. Use `self.helper_variable` to track task progress if necessary.
+        "description": """This is a curriculum learning task where the policy is already able to hover over the basket with object grasp. Now, you only formulate the last stage reward to slightly change the policy: let the object be correctly dropped after the condition in the last stage is met. You can gate the other stages and make the policy untouched or something
         """,
         "success_metric": (
          """low_enough = self.target_object.data.root_pos_w[env_ids, 2] <self.target_site_corners_world[1,2]
@@ -103,7 +128,6 @@ TASKS_CFG = {
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
     },
-
 
 
     "TestPutItInTheBasket": {
