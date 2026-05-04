@@ -28,6 +28,7 @@ Some helpful tips for writing the reward function code:
     (5) Most importantly, the reward code's input variables must contain only attributes of the provided environment class definition (namely, variables that have prefix self.). Under no circumstance can you introduce new input variables.
     (6) Robot joint limits are give as self.robot_dof_upper_limits and self.robot_dof_lower_limits, 1D tensor vector with 9 elements. Have correct penalty to avoid being close to joint limits!
     (7) For long-horizon tasks, when stage information is available, leave the previous stages unchanged unless intervention is necessary.
+    (8) Gamma is 0.9 so ensure that success has enough reward to be favored over hovering. (Should be 10 times larger than the best non-success reward)
     """
 
 

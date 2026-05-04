@@ -43,7 +43,9 @@ class Eureka:
         num_parallel_runs: int = 1,
         replay: bool = False,
         keep_best_reward: bool = False,
-        resume:bool = False
+        resume: bool = False,
+        use_vlm: bool = True,
+        consider_stage_in_success_metric: bool = False,
     ):
         """Initialize the Eureka class.
 
@@ -62,16 +64,19 @@ class Eureka:
 
         # Load the task description and success metric
         self._debug = True
-        self.consider_stage_in_success_metric = True
         self.num_stages=5
         self.keep_best_reward = keep_best_reward
-        self.smooth_metric = True
+        self.smooth_metric = False
         self.replay = replay
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
             self._success_metric_string = TASKS_CFG[task].get("success_metric")
             self._success_metric_to_win = TASKS_CFG[task].get("success_metric_to_win")
             self._success_metric_tolerance = TASKS_CFG[task].get("success_metric_tolerance")
+            # Task config may override the constructor argument; constructor arg is the fallback.
+            self.consider_stage_in_success_metric = TASKS_CFG[task].get(
+                "consider_stage_in_success_metric", consider_stage_in_success_metric
+            )
         else:
             raise ValueError(
                 f"Task configuration for {task} not found in the `TASKS_CFG` dictionary in config/tasks.py."
@@ -92,7 +97,9 @@ class Eureka:
         )
 
         print("[INFO]: Setting up the Task Manager...")
-        self._task_manager = EurekaTaskManager(
+        import inspect
+        task_manager_class = getattr(self, "_task_manager_class", EurekaTaskManager)
+        tm_kwargs = dict(
             task=task,
             checkpoint_to_resume_from=checkpoint_to_resume_from,
             device=device,
@@ -101,8 +108,13 @@ class Eureka:
             num_processes=self._num_processes,
             max_training_iterations=max_training_iterations,
             success_metric_string=self._success_metric_string,
-            replay=replay
+            replay=replay,
         )
+        # Pass use_vlm only if the task manager class accepts it
+        if "use_vlm" in inspect.signature(task_manager_class.__init__).parameters:
+            tm_kwargs["use_vlm"] = use_vlm
+        self._task_manager = task_manager_class(**tm_kwargs)
+        self.use_vlm = use_vlm
 
         # Logging
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -161,9 +173,12 @@ class Eureka:
                     eureka_task_feedback, success_metric_max, rewards_correlation = self._get_eureka_task_feedback(
                         result["log_dir"], self._feedback_subsampling
                     )
-                    vlm_output_file = os.path.join(result["log_dir"], "vlm_output.txt")
-                    with open(vlm_output_file, "r") as f:
-                        llm_task_feedback = f.read()
+                    if self.use_vlm:
+                        vlm_output_file = os.path.join(result["log_dir"], "vlm_output.txt")
+                        with open(vlm_output_file, "r") as f:
+                            llm_task_feedback = f.read()
+                    else:
+                        llm_task_feedback = ""
 
                     if self.replay:
                         replay_eureka_task_feedback = self._get_replay_task_feedback(
@@ -180,10 +195,11 @@ class Eureka:
                     else:
                         best_iter_feeback = ""
                     # Generate the user feedback prompt
+                    vlm_feedback_section = LLM_TASK_FEEDBACK_PROMPT.format(llm_task_feedback=llm_task_feedback) if llm_task_feedback else ""
                     user_feedback_prompt = (
                         TASK_SUCCESS_PRE_FEEDBACK_PROMPT.format(feedback_subsampling=self._feedback_subsampling)
                         + eureka_task_feedback
-                        + LLM_TASK_FEEDBACK_PROMPT.format(llm_task_feedback=llm_task_feedback)
+                        + vlm_feedback_section
                         + replay_eureka_task_feedback
                         + best_iter_feeback
                         + TASK_SUCCESS_POST_FEEDBACK_PROMPT
@@ -287,6 +303,9 @@ class Eureka:
                 if "Eureka/success_metric" in data and metric_name == "Eureka/oracle_total_rewards":
                     # If success metric is available, we do not provide the oracle feedback
                     feedback_string = ""
+                if self.consider_stage_in_success_metric and metric_name == "success_metric":
+                    # Raw success_metric suppressed; replaced below by weighted task_score
+                    feedback_string = ""
                 total_feed_back_string += feedback_string
 
                 # If using stages for task score: do the following:
@@ -319,7 +338,13 @@ class Eureka:
                 f"{metric_name}: {data_string}, Min: {metric_min:.2f}, Max: {metric_max:.2f}, Mean:"
                 f" {metric_mean:.2f} \n"
             )
-            feedback_string = "For long horizon task, task score is weighted average of stages and success nad the best is picked:\n" + feedback_string
+            stage_weight_desc = ", ".join(
+                [f"stage_{i+1}×{stage_weights[i]}" for i in range(len(stage_weights) - 1)]
+            )
+            feedback_string = (
+                f"task_score replaces raw success_metric. Formula: success_metric + ({stage_weight_desc})."
+                f" Best value closest to win target is selected.\n"
+            ) + feedback_string
             total_feed_back_string += feedback_string
             
         total_feed_back_string += f"\nThe desired task_score to win is: {self._success_metric_to_win:.2f}\n"
@@ -401,10 +426,10 @@ class Eureka:
     def _compute_best_metric(self,metric_data) -> float:
         import numpy as np
         if self.smooth_metric:
-            window_size = 100
+            window_size = 5
             if len(metric_data) >= window_size:
                 smoothed = np.convolve(metric_data, np.ones(window_size)/window_size, mode='same')
                 metric_best = smoothed[np.abs(smoothed - self._success_metric_to_win).argmin()]
-            else:
-                metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
+        else:
+            metric_best = metric_data[np.abs(np.array(metric_data) - self._success_metric_to_win).argmin()]
         return metric_best

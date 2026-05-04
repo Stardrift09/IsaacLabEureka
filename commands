@@ -2,11 +2,30 @@ For VLMs:
 pip install qwen-vl-utils
 pip install accelerate
 
+scripts/usd_inspect.py created. Usage:
 
+
+# basic hierarchy
+python scripts/usd_inspect.py path/to/file.usd
+
+# limit depth, show attributes
+python scripts/usd_inspect.py file.usd --depth 3 --attrs
+
+# only Mesh prims
+python scripts/usd_inspect.py file.usd --filter Mesh
+
+# show references, variants, metadata
+python scripts/usd_inspect.py file.usd --refs --variants --meta
+
+# summary only (no tree)
+python scripts/usd_inspect.py file.usd --no-tree
 
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=TestPickItUp --headless --seed=42
 
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=TestPickItUp --num_envs=20  --video --video_length=1500
+python scripts/reinforcement_learning/rsl_rl/play_sequential.py   --task PlaceInBasket   --num_envs 4   --pick_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up/2026-04-14_22-54-56_Run-0_tueilsy-st-13/model_1950.pt  --place_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/place_in_basket/2026-04-15_18-45-22_Run-0_tueilsy-st-13/model_1999.pt --stochastic
+/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/place_in_basket/2026-04-17_18-22-37_Run-0_tueilsy-st-13_init_randomization/model_300.pt
+python scripts/train_sequential_vlm.py --no_replay --task=PlaceInBasket --max_eureka_iterations=30 --max_training_iterations=2000 --no_vlm
 
 ssh go49lov2@cool.hpc.lrz.de
 
