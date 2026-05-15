@@ -17,7 +17,7 @@ from isaaclab_eureka.eureka import Eureka
 # logger = logging.getLogger(__name__)
 
 def main(args_cli):
-    if args_cli.task in ["Isaac-Franka-Cabinet-Direct-v0","AToB"] and not args_cli.no_replay:
+    if args_cli.task in ["Isaac-Franka-Cabinet-Direct-v0", "AToB", "PickItUp", "PlaceInBasket"] and not args_cli.no_replay:
         args_cli.no_replay = True
         print("Current task doesn't have successful demos, setting replay to False")
     eureka = Eureka(
@@ -33,7 +33,9 @@ def main(args_cli):
         gpt_model=args_cli.gpt_model,
         replay=not args_cli.no_replay,
         keep_best_reward=not args_cli.no_keep_best_reward,
-        resume=args_cli.resume
+        resume=args_cli.resume,
+        consider_stage_in_success_metric=args_cli.consider_stage_in_success_metric,
+        use_vlm=not args_cli.no_vlm,
     )
 
     eureka.run(max_eureka_iterations=args_cli.max_eureka_iterations)
@@ -42,6 +44,7 @@ def main(args_cli):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train an RL agent with Eureka.")
     parser.add_argument("--no_keep_best_reward", action="store_true", help="Whether to keep the best reward function for better reward generation. It is more costly")
+    parser.add_argument("--no_vlm", action="store_true", help="Disable VLM feedback (skips camera, trajectory recording, and VLM inference)")
     parser.add_argument("--no_replay", action="store_true", help="Whether replay the task")
     parser.add_argument("--task", type=str, default="TestPickItUp", help="Name of the task.")
     parser.add_argument("--checkpoint_to_resume_from", type=str, default="/home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/logs/rsl_rl/test_pick_it_up/2026-03-26_20-00-25/model_1499.pt", help="Path to the checkpoint where the training should resume from")
@@ -69,7 +72,7 @@ if __name__ == "__main__":
         default=1,
         help="Controls the randomness of the GPT output (0 is deterministic, 1 is highly diverse).",
     )
-    parser.add_argument("--gpt_model", type=str, default="gpt-5.4", help="The GPT model to use.")
+    parser.add_argument("--gpt_model", type=str, default="gpt-5.5", help="The GPT model to use.")
     parser.add_argument(
         "--rl_library",
         type=str,
@@ -81,6 +84,11 @@ if __name__ == "__main__":
         "--resume",
         action="store_true",
         help="Resume training from a certain reward function"
+    )
+    parser.add_argument(
+        "--consider_stage_in_success_metric",
+        action="store_true",
+        help="Use stage-weighted task score as success metric (overrides task config default).",
     )
     args_cli = parser.parse_args()
 

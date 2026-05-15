@@ -74,7 +74,8 @@ class EurekaTaskManager:
         env_seed: int = 42,
         max_training_iterations: int = 100,
         success_metric_string: str = "",
-        replay: bool = False
+        replay: bool = False,
+        use_vlm: bool = True,
     ):
         """Initialize the task manager. Each process will create an independent training run.
 
@@ -96,6 +97,7 @@ class EurekaTaskManager:
         self._success_metric_string = success_metric_string
         self.replay = replay
         self._env_seed = env_seed
+        self.use_vlm = use_vlm
         # if self._success_metric_string:
         #     self._success_metric_string = "extras['Eureka/success_metric'] = " + self._success_metric_string
 
@@ -218,7 +220,7 @@ class EurekaTaskManager:
         if self._device == "cuda":
             device_id = get_freest_gpu()
             self._device = f"cuda:{device_id}"
-        app_launcher = AppLauncher(headless=True, device=self._device, enable_cameras=True) # enable if using VLM to provide feedback
+        app_launcher = AppLauncher(headless=True, device=self._device, enable_cameras=self.use_vlm)
         self._simulation_app = app_launcher.app
         time.sleep(10)
         print("app launched")
@@ -314,12 +316,16 @@ class EurekaTaskManager:
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
             # run everything in inference mode
 
-            pic_save_dir = os.path.join(self._log_dir, "pictures")
-            with torch.inference_mode():
-                output_text = self._env.unwrapped.run_single_traj_and_get_vlm_feedback(runner.alg.policy, runner.get_inference_policy(device=env.unwrapped.device), pic_save_dir)
             output_file = os.path.join(self._log_dir, "vlm_output.txt")
-            with open(output_file, "w") as f:
-                f.write(output_text)
+            if self.use_vlm:
+                pic_save_dir = os.path.join(self._log_dir, "pictures")
+                with torch.inference_mode():
+                    output_text = self._env.unwrapped.run_single_traj_and_get_vlm_feedback(runner.alg.policy, runner.get_inference_policy(device=env.unwrapped.device), pic_save_dir)
+                with open(output_file, "w") as f:
+                    f.write(output_text)
+            else:
+                with open(output_file, "w") as f:
+                    f.write("VLM disabled.")
                 
         elif self._rl_library == "rl_games":
             from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper

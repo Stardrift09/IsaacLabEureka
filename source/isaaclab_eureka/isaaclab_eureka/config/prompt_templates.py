@@ -29,6 +29,17 @@ Some helpful tips for writing the reward function code:
     (6) Robot joint limits are give as self.robot_dof_upper_limits and self.robot_dof_lower_limits, 1D tensor vector with 9 elements. Have correct penalty to avoid being close to joint limits!
     (7) For long-horizon tasks, when stage information is available, leave the previous stages unchanged unless intervention is necessary.
     (8) Gamma is 0.9 so ensure that success has enough reward to be favored over hovering. (Should be 10 times larger than the best non-success reward)
+    (9) For staged tasks, later stages should provide higher value than earlier stages, but avoid creating persistent rewards that make the agent prefer waiting inside an intermediate stage. Stage bonuses should primarily reward reaching a stage, and progress terms should encourage continued advancement.
+
+        If using persistent stage bonuses, ensure that the discounted cumulative value of staying in any non-terminal stage is lower than the value of progressing to the next stage or completing the task. With gamma = 0.9, a persistent per-step reward h can be worth up to h / (1 - gamma), so terminal or success rewards must dominate that value.
+
+        Prefer combining:
+            (1) bounded dense shaping within each stage,
+            (2) a small persistent stage indicator bonus,
+            (3) progress/improvement rewards toward the next stage,
+            (4) a time penalty or stagnation penalty,
+            (5) a large success reward or terminal success bonus.
+
     """
 
 

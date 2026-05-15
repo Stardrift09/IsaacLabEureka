@@ -33,22 +33,25 @@ def get_replay_task_feedback(log_dir: str) -> tuple[str]:
 
 if __name__ == "__main__":
     """Create the environment for the task."""
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", type=str, default="OpenTheMicrowave")
+    parser.add_argument("--log_dir", type=str, default=None)
+    parser.add_argument("--num_envs", type=int, default=50)
+    parser.add_argument("--headless", action="store_true", default=False)
+    args = parser.parse_args()
+
     root = eureka_root_dir()
-    log_dir = os.path.join(root, "logs", "replay_test")
-    # if os.path.exists(log_dir):
-    #     if os.listdir(log_dir):
-    #         print("folder is not empty")
-    #         exit()
-    # task = "LivingRoomScene1PickUpTheAlphabetSoupAndPutItInTheBasket"
-    # task = "TestPutItInTheBasket"
-    task = "TestPickItUp"
+    task = args.task
+    log_dir = args.log_dir if args.log_dir else os.path.join(root, "logs", f"replay_{task}")
+
     from isaaclab.app import AppLauncher
     from isaaclab_eureka.utils import MuteOutput, get_freest_gpu
     device = "cuda"
     if device == "cuda":
         device_id = get_freest_gpu()
         device = f"cuda:{device_id}"
-    app_launcher = AppLauncher(headless=False, device=device)
+    app_launcher = AppLauncher(headless=args.headless, device=device)
     simulation_app = app_launcher.app
 
     # import omni.timeline
@@ -67,14 +70,13 @@ if __name__ == "__main__":
     from isaaclab_tasks.utils import parse_env_cfg
     env_cfg: DirectRLEnvCfg = parse_env_cfg(task)
     env_cfg.sim.device = device
-    env_cfg.scene.num_envs = 50
+    env_cfg.scene.num_envs = args.num_envs
     env = gym.make(task, cfg=env_cfg)
     env = env.unwrapped
     env.reset()
     env.run_replay(log_dir,render=True,detect_grasp=True)
-
-    total_feed_back_string = get_replay_task_feedback(log_dir=log_dir)
-    print(total_feed_back_string)
+    # total_feed_back_string = get_replay_task_feedback(log_dir=log_dir)
+    # print(total_feed_back_string)
     print("finished replaying, exiting")
     env.close()
 

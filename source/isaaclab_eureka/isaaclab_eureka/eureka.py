@@ -66,7 +66,7 @@ class Eureka:
         self._debug = True
         self.num_stages=5
         self.keep_best_reward = keep_best_reward
-        self.smooth_metric = False
+        self.smooth_metric = True
         self.replay = replay
         if task in TASKS_CFG:
             task_description = TASKS_CFG[task]["description"]
