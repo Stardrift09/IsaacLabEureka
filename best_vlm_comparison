@@ -1,0 +1,66 @@
+                Prompt:
+                Analyze the sequence of images. There are two coordinate frames, 
+                one is attached to the center of gripper fingers, another is on the target object.
+                Answer:
+                1. Is the object grasped? (yes/no/you are not sure)
+                2. Is it positioned above the basket? (yes/no/you are not sure)
+                3. Did the robot drop the object in the basket? (yes/no/you are not sure)
+                4. Did the robot stick its hand into the basket? (yes/no/you are not sure)
+                6. Brief reasoning.
+
+GT: yes yes no no
+The robot holds the objects and moved to above the basket, but the object is occluded and only coordinate can be seen
+
+
+
+
+Image dir:
+/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/picture_test:
+
+(eureka) shaotongchen@tueilsy-st-13:~/workspace_eureka/IsaacLabEureka$ python scripts/VLM_test_QWEN.py 
+1. yes
+2. no
+3. no
+4. no
+5. The robot is holding the bottle with its grippers. It is not positioned above the basket and has not dropped the bottle in the basket.
+
+(eureka) shaotongchen@tueilsy-st-13:~/workspace_eureka/IsaacLabEureka$ python scripts/VLM_test_deepcaption.py 
+  warnings.warn(
+["                1. Yes\n                2. Yes\n                3. No\n                4. Yes\n                6. The robot grasped the blue bottle and moved it towards the basket. It then released the bottle inside the basket, causing it to fall in. The robot's hand did indeed enter the basket during this process."]
+
+
+
+Anaysis:
+1. 3/4
+2. 3/4
+
+
+
+GT: no no no no
+The robot is out of the scene.
+
+
+Image dir:
+/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up/2026-04-11_18-41-03_Run-0_tueilsy-st-13/pictures
+
+(eureka) shaotongchen@tueilsy-st-13:~/workspace_eureka/IsaacLabEureka$ python scripts/VLM_test_deepcaption.py 
+
+["                1. Yes\n                2. No\n                3. No\n                4. No\n                6. The robot's hand is not inside the basket and it has not dropped any object into it. It seems like the robot is trying to grasp or move something near the basket but hasn't successfully placed anything inside yet."]
+
+
+(eureka) shaotongchen@tueilsy-st-13:~/workspace_eureka/IsaacLabEureka$ python scripts/VLM_test_QWEN.py 
+1. no
+2. yes
+3. no
+4. no
+5. The robot is moving the object away from the basket.
+
+
+Anaysis:
+1. 3/4
+2. 3/4
+
+
+
+
+

@@ -40,6 +40,24 @@ Some helpful tips for writing the reward function code:
             (4) a time penalty or stagnation penalty,
             (5) a large success reward or terminal success bonus.
 
+    (10) Object/body geometry — use the AABB-derived attributes the environment already exposes on `self`. You may NOT call BBoxCache, modify __init__, or introduce new tensors outside the reward (see tip 5); AABB extraction is done by the env at scene init using `UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default"]).ComputeWorldBound(prim)` and the results are surfaced as per-env attributes. Common shapes the env may provide:
+        - `self.<obj>_corners_world` or `self.corners_<obj>`: 8 world-frame AABB corners, shape (num_envs, 8, 3), refreshed each step;
+        - `self.<obj>_size`: AABB extents along x/y/z in object-local frame, shape (num_envs, 3);
+        - `self.<obj>_center`: world-frame AABB center, shape (num_envs, 3).
+        Inside the reward function, derive per-step extents and clearance proxies directly from those tensors:
+        ```python
+        extent_xy   = corners_w[:, :, :2].max(dim=1).values - corners_w[:, :, :2].min(dim=1).values
+        radius_xy   = 0.5 * torch.linalg.norm(extent_xy, dim=-1)
+        half_height = 0.5 * (corners_w[:, :, 2].max(dim=1).values - corners_w[:, :, 2].min(dim=1).values)
+        ```
+        If the env does not expose an AABB attribute for the body you need, fall back to root-pose-based shaping — do not invent geometry.
+
+    (11) Collision-avoidance reward without guessing:
+        - Sizes/radii/clearances MUST come from the AABB-derived attributes in tip (10); never hardcode an object radius, half-height, or clearance.
+        - Clearance threshold = sum of the two relevant half-extents along the contact axis + a small margin (<= 0.05 m).
+        - Soft penalty: `temp_clear * (threshold - distance).clamp_min(0.0)`, with one named temperature per term. For smooth shaping use `torch.exp(-(distance / temp).clamp(0.0, 50.0))` with its own named temperature.
+        - For ground-truth contact events use the `ContactSensor` outputs already attached by the env (`self.scene['..._contact_sensor'].data.force_matrix_w` / `net_forces_w`), not a distance proxy.
+
     """
 
 

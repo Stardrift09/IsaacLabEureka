@@ -23,7 +23,7 @@ CHECKPOINTS=(
 for CKPT in "${CHECKPOINTS[@]}"; do
     echo "===== Playing checkpoint: $CKPT ====="
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    ./IsaacLab/isaaclab.sh -p IsaacLab/scripts/reinforcement_learning/rsl_rl/play.py \
         --task="$TASK" \
         --num_envs=$NUM_ENVS \
         --video \

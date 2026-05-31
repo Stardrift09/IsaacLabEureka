@@ -894,6 +894,45 @@ Lift it safely, and place it inside the basket. This is a multi-stage, long-hori
     # },
 
 
+    "TestPlaceCreamCheeseInDrawer": {
+        "description": """**Objective:** Pick up the cream cheese and place it inside the pre-opened bottom drawer of the Sektion cabinet.
+
+## Scene
+- Franka Panda at env-local (1.0, 0, 0)
+- Sektion cabinet at env-local (-0.2, 0, 0.4); bottom drawer held open at ~0.39 m
+- Cream cheese spawns at env-local ≈ (1.0, ±0.4, 0) — to the side of the robot, not between robot and drawer
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.to_desired_rot`: quat error to desired grasp orientation [num_envs, 4]; reward w→1
+- `self.target_object.data.root_pos_w`: cream cheese world pos [num_envs, 3]
+- `self.drawer_interior_pos_w`: drawer interior centre world pos [num_envs, 3]
+- `self.corners_target_obj`: cream cheese 8 AABB corners in world frame [num_envs, 8, 3] (already maintained by the env each step; see tip 10)
+- `self.target_object_size`: cream cheese AABB extents along x/y/z [num_envs, 3]
+- `self.grasped`: bool [num_envs], True if cheese stably grasped
+- `self.high_enough`: bool [num_envs], True if cheese lifted above drawer opening
+- `self.inside_site`: bool [num_envs], True if cheese inside drawer volume
+- `self.grasped_and_lifted`: bool [num_envs], latched True once grasped+lifted
+- `self._cabinet.data.joint_pos[:, self.drawer_joint_idx]`: bottom drawer opening in meters [num_envs]; starts at ~0.39 (open), decreases if the drawer is pushed closed
+
+Design a dense reward that rewards approaching, grasping, lifting, transporting, and placing the cheese inside the drawer. Add regularisation on joint speed and action rate for smooth motion. Multi-stage decomposition is optional, not required.
+
+## Constraint
+The drawer is a free (passive) joint, so the robot can accidentally push it closed.
+Penalize closing the drawer from its initial open position **before** the cream cheese is inside
+(i.e. while `~self.inside_site`). Once the cheese is inside, this penalty should not apply.
+Measure displacement as the drop in `self._cabinet.data.joint_pos[:, self.drawer_joint_idx]`
+below its initial open value (~0.39 m); use a one-sided penalty (only closing is penalised).
+""",
+        "success_metric": (
+            """success = self.inside_site[env_ids] & self.grasped_and_lifted[env_ids]
+    extras['Eureka/success_metric'] = success.float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
+
     "OpenDrawerAndPutCreamCheese": {
         "description": """**Objective:** Open the top drawer of the Sektion Cabinet, then place the cream_cheese inside it.
 
@@ -922,15 +961,15 @@ Lift it safely, and place it inside the basket. This is a multi-stage, long-hori
 
 Add regularisation on joint speed and action rate for smooth motion.
 """,
-        "success_metric": """
-drawer_joint_pos = self._cabinet.data.joint_pos[env_ids, self.drawer_top_joint_idx]
-drawer_open = drawer_joint_pos > self.cfg.drawer_open_threshold
-cheese_pos = self._cream_cheese.data.root_pos_w[env_ids]
-d_cheese = torch.norm(cheese_pos - self.drawer_interior_pos[env_ids], p=2, dim=-1)
-cheese_inside = d_cheese < self.cfg.drawer_placement_tolerance
-success = drawer_open & cheese_inside
-extras['Eureka/success_metric'] = success.float().mean()
-""",
+        "success_metric": (
+            """drawer_joint_pos = self._cabinet.data.joint_pos[env_ids, self.drawer_top_joint_idx]
+    drawer_open = drawer_joint_pos > self.cfg.drawer_open_threshold
+    cheese_pos = self._cream_cheese.data.root_pos_w[env_ids]
+    d_cheese = torch.norm(cheese_pos - self.drawer_interior_pos[env_ids], p=2, dim=-1)
+    cheese_inside = d_cheese < self.cfg.drawer_placement_tolerance
+    success = drawer_open & cheese_inside
+    extras['Eureka/success_metric'] = success.float().mean()"""
+        ),
         "success_metric_to_win": 1.0,
         "success_metric_tolerance": 0.05,
     },

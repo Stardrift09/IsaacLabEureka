@@ -1,0 +1,12 @@
+Eureka is a agent which utilizes coding-LLM to get a good reward function and policy. It is done by training RL with LLM generated reward function
+and then return policy training results as prompt to coding-LLM iteratively. Now in isaaclab I have IsaacLab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/test_pick_it_up.py
+which is the up-to-date RL env.And /home/shaotongchen/workspace_eureka/IsaacLabEureka/source/isaaclab_eureka/isaaclab_eureka/config/tasks.py here are the task descriptions which is used to calculate
+success_metric.
+
+Now I want to do the task in two stages: pick up the object and put the object in the basket. You can make a copy of the existing task descriptions, environment and register correspondingly. But remember that the task name is used to match the corresponding environment.
+
+Firstly you need to train pick up the object. What you should do is to modify the termination condition: for example when the object is picked up for a certain height, you can reuse my suitable criteria. You should do this change in both task description and in _get_dones(). You can also modify the prompt for VLM to ask whether the object is grasped and whether it is lifted compared to initial position.
+
+Then for put the object in the basket, you should also modify the terminiation condition. You can reuse mine. And the initial condition should be changed: you can check corresponding flag in the environment.
+
+Lastly, the argument should be adjusted: 

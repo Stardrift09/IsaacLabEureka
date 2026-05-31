@@ -53,14 +53,11 @@ from openai import OpenAI
 client = OpenAI()
 
 response = client.responses.create(
-    model="gpt-5.4",
+    model="gpt-5.5",
     # reasoning={"effort": "high"},
     input=
     """
-I am calculating reward:
-for the RL env, episode length is 500 steps. The reward is accumulated and devided by episode length in s.
-Now I have successful demos with length maximum 172(which is not the max cause it is undefined. How do I calculate the reward for this to make the two comparable?
-
+Say hi
 
 """
 )

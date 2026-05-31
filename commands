@@ -2,6 +2,14 @@ For VLMs:
 pip install qwen-vl-utils
 pip install accelerate
 
+
+cd IsaacLab/docker
+python container.py start base --files docker-compose.eureka.yaml
+# inside container:
+/isaac-sim/python.sh -m pip install -e /workspace/isaaclab_eureka
+
+
+
 scripts/usd_inspect.py created. Usage:
 
 
@@ -70,6 +78,9 @@ apt-get update && apt-get install -y \
 
 apt install git
 
+enroot create --name lerobot-gpu \
+    /dss/dssmcmlfs01/pn57pi/pn57pi-dss-0001/enroot-images/huggingface+lerobot-gpu+latest.sqsh
+
 
 sinfo
 scontrol show job 5475590
@@ -80,6 +91,7 @@ salloc -p mcml-hgx-a100-80x4 --gres=gpu:1 -t 1:00:00 --qos=mcml
 salloc -p mcml-dgx-a100-40x8 --gres=gpu:8 --qos=mcml -t 12:00:00 --mem=800G --cpus-per-task=16
 srun --pty bash
 enroot create --name isaaclabeureka nvidia+cuda+12.6.3-cudnn-devel-ubuntu22.04.sqsh
+enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 enroot export --force --output isaaclabeureka.sqsh isaaclabeureka
 enroot export --force --output isaaclabeureka_v0.sqsh isaaclabeureka_v0
@@ -93,6 +105,16 @@ watch squeue --user=$USER
 enroot create --name isaaclab_run isaaclabeureka.sqsh
 enroot start --root --rw --mount $EUREKA:/workspace/isaaclabeureka isaaclab_run bash
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Franka-Cabinet-Direct-v0 --headless
+
+# useful in bashrc:
+conda-activate() { source /home/shaotongchen/miniconda3/etc/profile.d/conda.sh && conda activate "$1"; }
+
+#build container:
+cd IsaacLab/docker
+python container.py start base --files docker-compose.eureka.yaml
+# inside container:
+/isaac-sim/python.sh -m pip install -e /workspace/isaaclab_eureka/source/isaaclab_eureka
+./isaaclab.sh -i
 
 
 salloc -p mcml-dgx-a100-40x8 --gres=gpu:8 --qos=mcml -t 08:00:00 --mem=800G --cpus-per-task=96
@@ -231,3 +253,71 @@ Mean episode right_finger_distance_reward: 0.0851
 ###################################################
 35520512-35487744=32768
 2048 * 16 = 32768
+
+
+################################################################################
+# ablation.py — structured ablation runner (root dir)
+################################################################################
+
+# List all ablations
+python ablation.py --list
+
+# Dry-run a single ablation (print command, don't execute)
+python ablation.py --task TurnOnTheStove --ablation baseline --dry_run
+
+# Run a single ablation
+python ablation.py --task TurnOnTheStove --ablation baseline
+python ablation.py --task TurnOnTheStove --ablation no_vlm
+python ablation.py --task TurnOnTheStove --ablation no_replay
+python ablation.py --task TurnOnTheStove --ablation no_keep_best_reward
+python ablation.py --task TurnOnTheStove --ablation no_vlm_no_replay
+python ablation.py --task TurnOnTheStove --ablation consider_stage
+python ablation.py --task TurnOnTheStove --ablation temperature_low
+python ablation.py --task TurnOnTheStove --ablation temperature_high
+python ablation.py --task TurnOnTheStove --ablation more_iterations
+python ablation.py --task TurnOnTheStove --ablation more_training
+python ablation.py --task TurnOnTheStove --ablation parallel_2
+
+# Run comma-separated subset
+python ablation.py --task TurnOnTheStove --ablation no_vlm,no_replay,no_vlm_no_replay
+
+# Run all ablations sequentially
+python ablation.py --task TurnOnTheStove --ablation all
+
+# Different device
+python ablation.py --task TurnOnTheStove --ablation baseline --device cpu
+
+
+################################################################################
+# train_sequential_vlm.py — key argcli reference
+################################################################################
+
+# Full pipeline (VLM + replay + keep_best_reward)
+python scripts/train_sequential_vlm.py --task TurnOnTheStove
+
+# Disable VLM (saves GPU memory, faster iteration)
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --no_vlm
+
+# Disable replay
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --no_replay
+
+# Disable best-reward carry-over
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --no_keep_best_reward
+
+# Use stage-weighted success metric
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --consider_stage_in_success_metric
+
+# Resume from existing reward function
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --resume
+
+# Resume from checkpoint
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --checkpoint_to_resume_from /path/to/model.pt
+
+# Custom iterations and training length
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --max_eureka_iterations 50 --max_training_iterations 3000
+
+# Lower temperature (less diverse LLM proposals)
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --temperature 0.5
+
+# Two parallel reward candidates per iteration
+python scripts/train_sequential_vlm.py --task TurnOnTheStove --num_parallel_runs 2

@@ -11,7 +11,7 @@ messages = [
         "role": "user",
         "content": [
             *[
-                {"type": "image", "image": f"/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/picture_test/rgb_{i}_0.png"}
+                {"type": "image", "image": f"/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up/2026-04-11_18-41-03_Run-0_tueilsy-st-13/pictures/rgb_{i}_0.png"}
                 for i in range(1,65)
             ],
             {
