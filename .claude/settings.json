@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv,noheader)"
+      "Bash(nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv,noheader)",
+      "Bash(docker exec *)"
     ]
   }
 }

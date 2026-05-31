@@ -1,7 +1,8 @@
+.env.secret
 **/__pycache__/
 *.egg-info
 logs/
-logs_history
+logs_history/
 libero/
 Isaaclab/
 source/isaaclab_eureka/isaaclab_eureka/config/libero_objects.py

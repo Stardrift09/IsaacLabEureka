@@ -1,0 +1,6 @@
+Experiment setup: for pick-and-place task, using 3 models and different situations of the robot, query the vlms with questions and ask for general reply.
+
+BLIP can only be applied on images, and evenutally the performance is bad
+
+QWEN and DEEPCAPTION has similar performance. Being able to tell the difference and basically correctly describe the scene with slight hallucination describing the intention of the gripper. Able to tell big difference of spatial relationship
+
