@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv,noheader)",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(docker run *)",
+      "Bash(bash IsaacLab/docker/cluster/cluster_interface_eureka.sh push)",
+      "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -u scripts/replay_sweep.py --episodes 50)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -u scripts/replay_record.py --episodes 1 --log_dir logs/rec_wrist)",
+      "Bash(grep -n \"^class \\\\|^@configclass\\\\|^@configclass$\" /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/test_pick_it_up.py)"
     ]
   }
 }

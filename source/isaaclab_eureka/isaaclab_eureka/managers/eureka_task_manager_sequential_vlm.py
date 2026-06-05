@@ -59,12 +59,21 @@ def _reset_idx(self, env_ids):
         env_ids = torch.arange(self.num_envs, device=self.device)
     extras = dict()
     {success_metric}
+    # Channels set above by the success-metric injection (Eureka/success_metric and
+    # Eureka/stage_*) are INSTANTANEOUS fractions in [0,1] and are authoritative.
+    # The episodic-sum loop below normalizes per-second, which is correct for reward
+    # magnitudes but inflates 0/1 indicators ~60x. If an LLM reward dict reuses one of
+    # these reserved names as a component, the loop would clobber the correct value
+    # with the inflated one (this is what pushed task_score to ~5.3). Guard against it.
+    _reserved_metric_keys = set(extras.keys())
     self._reset_idx_original(env_ids)
     if not "log" in self.extras:
         self.extras["log"] = dict()
     for key in self._eureka_episode_sums.keys():
         episodic_sum_avg = torch.mean(self._eureka_episode_sums[key][env_ids])
-        extras["Eureka/"+key] = episodic_sum_avg / self.max_episode_length_s
+        log_key = "Eureka/"+key
+        if log_key not in _reserved_metric_keys:
+            extras[log_key] = episodic_sum_avg / self.max_episode_length_s
         self._eureka_episode_sums[key][env_ids] = 0.0
     self.extras["log"].update(extras)
 """
@@ -294,7 +303,11 @@ def _training_worker(
         result = {"success": True, "log_dir": log_dir_path, "checkpoint_path": checkpoint_path}
 
     except Exception as e:
-        result = {"success": False, "exception": str(e)}
+        # Carry the full traceback (not just str(e)) so it reaches the slurm log via the
+        # main process — after AppLauncher, kit captures this worker's stdout, so the
+        # print() below goes only to the kit log. The result dict travels back over the
+        # queue and is printed by the parent, which is not under kit's stdout capture.
+        result = {"success": False, "exception": traceback.format_exc()}
         print(traceback.format_exc())
 
     # Put result BEFORE closing sim — sim_app.close() can hang indefinitely.

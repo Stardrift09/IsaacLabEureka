@@ -30,7 +30,7 @@ class EurekaSequentialVLM(Eureka):
 
 
 def main(args_cli):
-    if args_cli.task in ["Isaac-Franka-Cabinet-Direct-v0", "AToB", "PickItUp", "PlaceInBasket", "PickItUpNoGrasp", "PickItUpNoGraspGamma99"] and not args_cli.no_replay:
+    if args_cli.task in ["Isaac-Franka-Cabinet-Direct-v0", "AToB", "PickItUp", "PlaceInBasket", "PickItUpNoGrasp", "PickItUpNoGraspGamma99", "TestPlaceCreamCheeseInDrawer"] and not args_cli.no_replay:
         args_cli.no_replay = True
         print("Current task doesn't have successful demos, setting replay to False")
 
@@ -106,7 +106,7 @@ if __name__ == "__main__":
         default=1,
         help="Controls the randomness of the GPT output.",
     )
-    parser.add_argument("--gpt_model", type=str, default="gpt-5.4", help="The GPT model to use.")
+    parser.add_argument("--gpt_model", type=str, default="gpt-5.5", help="The GPT model to use.")
     parser.add_argument(
         "--rl_library",
         type=str,

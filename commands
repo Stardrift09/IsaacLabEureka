@@ -3,6 +3,12 @@ pip install qwen-vl-utils
 pip install accelerate
 
 
+~/lerobot/.venv/bin/python ~/lerobot/scripts/convert_replay_to_lerobot.py \
+  --in .../logs/replay_record --repo-id local/pickitup_replay \
+  --root ~/lerobot/datasets/pickitup_replay --overwrite
+
+
+
 cd IsaacLab/docker
 python container.py start base --files docker-compose.eureka.yaml
 # inside container:

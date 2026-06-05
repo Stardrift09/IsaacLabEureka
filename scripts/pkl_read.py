@@ -1,5 +1,5 @@
-# import pickle
-# import os
+import pickle
+import os
 # from isaaclab_eureka.utils import eureka_root_dir
 # root = eureka_root_dir()
 # folder = os.path.join(root, "libero/trajs/libero90")
@@ -49,17 +49,25 @@
 
 
 
-from openai import OpenAI
-client = OpenAI()
+# from openai import OpenAI
+# client = OpenAI()
 
-response = client.responses.create(
-    model="gpt-5.5",
-    # reasoning={"effort": "high"},
-    input=
-    """
-Say hi
+# response = client.responses.create(
+#     model="gpt-5.5",
+#     # reasoning={"effort": "high"},
+#     input=
+#     """
+# Say hi
 
-"""
-)
+# """
+# )
 
-print(response.output_text)
+# print(response.output_text)
+
+
+
+import gzip
+file = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/libero/trajs/libero/pick_up_the_bbq_sauce_and_place_it_in_the_basket/v2/franka_v2.pkl.gz"
+with gzip.open(file, "rb") as f:
+    obj = pickle.load(f)
+    import pdb; pdb.set_trace()

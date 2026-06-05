@@ -91,11 +91,9 @@ def eureka_root_dir():
 
 if __name__ == "__main__":
     root = eureka_root_dir()
-    path = (
-        f"{root}/libero/trajs/libero90/"
-        "libero_90_kitchen_scene3_turn_on_the_stove_traj_v2.pkl"
-    )
+    path = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/libero/trajs/libero90/libero_90_kitchen_scene2_stack_the_black_bowl_at_the_front_on_the_black_bowl_in_the_middle_traj_v2.pkl"
     read_pkl(path=path)
-
+    import pdb
+    pdb.set_trace()
     # print(eureka_root_dir())
     # get_freest_gpu()
