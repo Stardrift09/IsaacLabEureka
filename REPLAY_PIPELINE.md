@@ -48,6 +48,8 @@ Core file: [`replay_pick_it_up_one_env.py`](IsaacLab/source/isaaclab_tasks/isaac
 | [`scripts/replay_all.py`](scripts/replay_all.py) | all 50 episodes of the current config; `summary.txt`/`summary.csv`. |
 | [`scripts/replay_sweep.py`](scripts/replay_sweep.py) | sweeps many controller/gain configs (soft→rigid), ranks by success. `--episodes N`. |
 | [`scripts/replay_record.py`](scripts/replay_record.py) | records two LIBERO cameras over all episodes of one config (see §5). |
+| [`scripts/eval_policy.py`](scripts/eval_policy.py) | rolls a policy through the env's eval interface (see §5b); self-tests with demo actions. |
+| [`scripts/eval_client.py`](scripts/eval_client.py) | **the real eval driver**: eureka-side, vs a **remote** LeRobot policy (HTTP). Evaluates (randomized via `EvalPickItUpOneEnv`) and, with `--record_dir`, collects a dataset from the policy (see §5b). Mirrored at `~/lerobot/examples/isaaclab/eval_client.py`. |
 | [`~/lerobot/scripts/convert_replay_to_lerobot.py`](file:///home/shaotongchen/lerobot/scripts/convert_replay_to_lerobot.py) | recorded dir → LeRobot v3 dataset (run in `~/lerobot/.venv`). |
 
 The replay env returns per-episode stats (`terminated_step`, `grasped_step`,
@@ -70,6 +72,8 @@ Ranked by task-success rate. Output: `logs/replay_sweep/sweep_ranking.txt` + `sw
   and cheaper than OSC (no jacobian/mass solve).
 - joint-PD is strongly monotonic — soft gains (≤ kp600, incl. the env default)
   fail to lift. OSC is robust and flat across kp 100–800.
+- `_set_replay_gains` writes the **same kp/kd to all 7 arm joints** (uniform, not
+  per-joint); fingers keep their own gains. So `pd_kp3000_kd260` = every arm joint at 3000/260.
 
 ## 5. Recording (two LIBERO-style cameras, 20 fps)
 
@@ -96,8 +100,80 @@ manifest.jsonl            # one line per episode
 successful/epNN/   agentview.mp4  wrist.mp4  sidebyside.mp4  arrays.npz  episode_meta.json
 unsuccessful/epNN/ ...    # task string gets " unsuccessful" suffix
 ```
-`arrays.npz`: `observation_state` [T,9], `action` [T,9] (demo joint targets),
-`timestamp` [T]. (Last run: 48 successful, 2 unsuccessful.)
+`arrays.npz`: `observation_state` [T,**8**], `action` [T,**8**] (demo joint
+targets), `timestamp` [T]. (Last run: 48 successful, 2 unsuccessful.)
+
+### Finger / gripper handling (8 dims = 7 arm + 1 gripper)
+The pkl stores 9 dofs (7 arm + 2 fingers, the fingers with opposite signs in
+MuJoCo convention). We **drop the 2nd finger when reading the demo**
+(`_build_demo_joint_sequence` keeps `dof[:8]` = arm + `finger_joint1`), and
+**synthesise it at apply time** by copying the single gripper value onto both
+finger joints (`_expand_to_full` / `_apply_joint_position_targets`). So the 2nd
+finger's value/sign is never trusted — the only finger handling is "copy gripper
+→ both fingers" right before commanding. State (`_state8`) and action are both
+8-dim and consistent.
+
+## 5b. Evaluation interface
+
+`ReplayPickItUpOneEnv` exposes a gym-style eval loop for rolling out a policy
+trained on the dataset (action = the same 8-dim joint targets):
+```python
+obs = env.eval_reset(episode_idx)                       # state(8) [+ 2 images if cameras]
+for t in range(horizon):
+    action = policy(obs)                                # [8] = 7 arm + 1 gripper
+    obs, terminated, truncated, info = env.eval_step(action)   # applies + steps physics
+    if terminated or truncated: break
+```
+`eval_step` copies the gripper onto both fingers, holds the target for
+`REPLAY_STEPS_PER_FRAME` physics steps (20 Hz control), bumps `episode_length_buf`
+(so `truncated` fires without a demo-defined horizon), and returns
+`info={success, grasped, object_z}`. `eval_observation` returns the LeRobot keys
+(`observation.state`, and with cameras `observation.images.image`/`image2`).
+Runner / self-test (feeds the demo's own actions back through physics):
+```
+python scripts/eval_policy.py --episodes 5            # joint_pd kp3000 -> ~100% on first eps
+```
+
+### Replay vs eval reset — `randomize_init` is the switch
+`eval_reset` keys off the env cfg's `randomize_init` so **replay** and **eval** never
+mix their resets (both reuse the parent `TestPickItUp._reset_idx`):
+
+| task | cfg | `eval_reset` behavior |
+|------|-----|------------------------|
+| `ReplayPickItUpOneEnv` | `randomize_init=False`, all noise 0 | DETERMINISTIC: parent reset, then pin to demo frame 0 (`episode_idx`). Replay / self-test. |
+| `EvalPickItUpOneEnv` | `randomize_init=True` + arm/object/basket noise | RANDOMIZED: parent reset only (random demo frame + domain noise), **no** demo overwrite. `episode_idx` unused. |
+
+`EvalPickItUpOneEnvCfg(ReplayPickItUpOneEnvCfg)` only re-enables randomization — same
+env class, registered as a second task. Replay = no init randomization; training/eval =
+randomization. (Custom `eval_step` exists because the env's native `_pre_physics_step`
+treats actions as scaled *deltas* while replay/eval/dataset actions are *absolute*
+joint targets; reset itself is fully `_reset_idx`.)
+
+### Remote policy (BC trained in LeRobot) + collecting a dataset from it
+The policy runs in the **LeRobot** env (numpy≥2), the sim in **eureka** (numpy<2), so
+they talk over HTTP. The bridge already exists: [`scripts/eval_client.py`](scripts/eval_client.py)
+(eureka side, imports no lerobot; JSON+base64 wire; mirrored at
+`~/lerobot/examples/isaaclab/eval_client.py`) ↔ LeRobot `eval_policy_http_server`
+(serves the BC checkpoint).
+
+```shell
+# eval only (success rate), randomized inits:
+~/miniconda3/envs/eureka/bin/python -u scripts/eval_client.py \
+    --task EvalPickItUpOneEnv --episodes 20 --server_url http://127.0.0.1:8080 \
+    --policy_type act --pretrained_path <ckpt_dir> --json_out /tmp/eval.json
+
+# collect a dataset FROM the policy (randomized) -> successful/ + unsuccessful/:
+~/miniconda3/envs/eureka/bin/python -u scripts/eval_client.py \
+    --task EvalPickItUpOneEnv --episodes 50 --server_url http://127.0.0.1:8080 \
+    --policy_type act --pretrained_path <ckpt_dir> \
+    --record_dir logs/collect_policy
+```
+
+`--record_dir` routes the rollout through `env.run_policy_rollout_all(policy_fn, ...)`,
+which reuses the replay recorders (`_write_episode_recording` /
+`_write_dataset_manifest`) — identical output layout to §5, so the same LeRobot
+converter (§6) consumes it unchanged. `--self_test` (deterministic
+`ReplayPickItUpOneEnv`) replays demo actions for a sanity run with no server.
 
 ## 6. LeRobot v3 dataset
 
@@ -112,8 +188,8 @@ Convert in the separate `~/lerobot/.venv` (lerobot 0.5.2):
 ```
 
 - Converts **successful episodes only** (`--include-unsuccessful` to add fails).
-- **State/action simplified 9 → 8**: 7 arm joints + 1 gripper (the two mirrored
-  finger joints collapse to one).
+- State/action are **already 8-dim** (7 arm + 1 gripper) from recording; the
+  converter's `to8` is just a guard that also handles legacy 9-dim recordings.
 - Schema mirrors `~/lerobot/datasets/libero/meta/info.json` (codebase **v3.0**,
   `robot_type=panda`): `observation.images.image` (agentview) +
   `observation.images.image2` (wrist), `observation.state`(8), `action`(8).

@@ -1,6 +1,14 @@
 from openai import OpenAI
-
 client = OpenAI()
 
-usage = client.responses.list()  # or usage-related endpoints depending on account access
-print(usage)
+response = client.responses.create(
+    model="gpt-5.5",
+    # reasoning={"effort": "high"},
+    input=
+    """
+Say hi
+
+"""
+)
+
+print(response.output_text)

@@ -8,7 +8,11 @@
       "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -u scripts/replay_sweep.py --episodes 50)",
       "Bash(echo \"EXIT=$?\")",
       "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -u scripts/replay_record.py --episodes 1 --log_dir logs/rec_wrist)",
-      "Bash(grep -n \"^class \\\\|^@configclass\\\\|^@configclass$\" /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/test_pick_it_up.py)"
+      "Bash(grep -n \"^class \\\\|^@configclass\\\\|^@configclass$\" /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/test_pick_it_up.py)",
+      "Read(//IsaacLab/docker/cluster/exports/isaac-lab-base.sif/workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/**)"
+    ],
+    "additionalDirectories": [
+      "/home/shaotongchen/lerobot/scripts"
     ]
   }
 }

@@ -72,8 +72,9 @@ def _reset_idx(self, env_ids):
     for key in self._eureka_episode_sums.keys():
         episodic_sum_avg = torch.mean(self._eureka_episode_sums[key][env_ids])
         log_key = "Eureka/"+key
-        if log_key not in _reserved_metric_keys:
-            extras[log_key] = episodic_sum_avg / self.max_episode_length_s
+        if log_key in _reserved_metric_keys:
+            log_key = log_key + "_reward"
+        extras[log_key] = episodic_sum_avg / self.max_episode_length_s
         self._eureka_episode_sums[key][env_ids] = 0.0
     self.extras["log"].update(extras)
 """

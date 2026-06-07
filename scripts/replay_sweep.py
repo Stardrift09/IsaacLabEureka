@@ -35,14 +35,14 @@ def build_configs():
         configs.append(dict(name=f"pd_kp{kp}_kd{kd}", controller="joint_pd",
                             osc_kp=None, osc_dr=None, pd_kp=float(kp), pd_kd=float(kd)))
 
-    # --- OSC: stiffness soft -> rigid, critically damped ---
-    for kp in [25, 50, 100, 150, 250, 400, 600, 800]:
-        osc(kp, 1.0)
-    # --- OSC: damping ratio under/over at two stiffnesses ---
-    for dr in [0.5, 0.7, 1.5, 2.0]:
-        osc(150, dr)
-    for dr in [0.7, 1.5]:
-        osc(400, dr)
+    # # --- OSC: stiffness soft -> rigid, critically damped ---
+    # for kp in [25, 50, 100, 150, 250, 400, 600, 800]:
+    #     osc(kp, 1.0)
+    # # --- OSC: damping ratio under/over at two stiffnesses ---
+    # for dr in [0.5, 0.7, 1.5, 2.0]:
+    #     osc(150, dr)
+    # for dr in [0.7, 1.5]:
+    #     osc(400, dr)
 
     # --- joint_pd: stiffness soft -> rigid (kd ~ critically damped) ---
     for kp, kd in [(100, 20), (200, 30), (300, 40), (500, 60), (700, 90),

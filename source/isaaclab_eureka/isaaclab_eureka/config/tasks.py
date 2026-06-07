@@ -350,6 +350,174 @@ Design multi-stage rewards following the stage structure above. Use `self.stage`
     },
 
 
+    "TestPickItUpMilk": {
+        "description": """Pick up the target object (milk) and drop it inside the basket. This is a multi-stage, long-horizon task.
+
+## Task stages (reflected in self.stage one-hot [num_envs, 5])
+- Stage 0: default — EEF not yet positioned above object
+- Stage 1: pregrasp — EEF is close in XY and positioned above the object
+- Stage 2: grasped — stable bilateral contact detected, EEF close to object
+- Stage 3: lifted — object grasped AND lifted above basket rim
+- Stage 4: over basket — object inside basket XY footprint (ready to release)
+- Success: object inside basket volume (low_enough & high_enough_for_basket & inside_site)
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.to_desired_rot`: quat from current→desired grasp orientation [num_envs, 4]; reward w→1 for correct approach angle
+- `self.target_object.data.root_pos_w`: object center world pos [num_envs, 3]
+- `self.target_object.data.root_quat_w`: object world quat [num_envs, 4]
+- `self.corners_target_obj`: object 8 corners in world frame [num_envs, 8, 3]
+- `self.target_site.data.root_pos_w`: basket center world pos [num_envs, 3]
+- `self.target_site_radius`: basket XY acceptance radius (scalar)
+- `self.basket_corners_world`: basket 8 corners in world frame [num_envs, 8, 3]
+- `self.grasped`: bool [num_envs], True if object is stably grasped this step
+- `self.high_enough`: bool [num_envs], True if object lifted above basket rim
+- `self.stage`: one-hot stage [num_envs, 5] — use for stage-conditioned rewards
+- `self.site_to_target_pos`: basket_center − object_center [num_envs, 3]
+
+Design multi-stage rewards following the stage structure above. Use `self.stage` to condition rewards on the current stage. The reward must be monotonically improving across stages (see reward formatting instructions).
+        """,
+        "success_metric": (
+            """obj_z = self.target_object.data.root_pos_w[env_ids, 2]
+    basket_z = self.basket_corners_world[env_ids, :, 2]
+    basket_bottom_z = basket_z.min(dim=1).values
+    basket_top_z = basket_z.max(dim=1).values
+    low_enough = obj_z < basket_top_z
+    high_enough_for_basket = obj_z > basket_bottom_z
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+
+    success = inside_site & low_enough & high_enough_for_basket
+    stage_masked = self.stage[env_ids].clone()
+    stage_masked = stage_masked * (~success).unsqueeze(-1)
+    for i in range(1, self.num_stages):  # Log stages 1-4; skip stage 0 (default)
+        extras[f'Eureka/stage_{i}'] = stage_masked[:, i].float().mean()
+
+    extras['Eureka/success_metric'] = success.float().mean()
+    """
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+        "consider_stage_in_success_metric": True,
+    },
+
+
+
+    "TestPickItUpOrangeJuice": {
+        "description": """Pick up the target object (orange_juice) and drop it inside the basket. This is a multi-stage, long-horizon task.
+
+## Task stages (reflected in self.stage one-hot [num_envs, 5])
+- Stage 0: default — EEF not yet positioned above object
+- Stage 1: pregrasp — EEF is close in XY and positioned above the object
+- Stage 2: grasped — stable bilateral contact detected, EEF close to object
+- Stage 3: lifted — object grasped AND lifted above basket rim
+- Stage 4: over basket — object inside basket XY footprint (ready to release)
+- Success: object inside basket volume (low_enough & high_enough_for_basket & inside_site)
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.to_desired_rot`: quat from current→desired grasp orientation [num_envs, 4]; reward w→1 for correct approach angle
+- `self.target_object.data.root_pos_w`: object center world pos [num_envs, 3]
+- `self.target_object.data.root_quat_w`: object world quat [num_envs, 4]
+- `self.corners_target_obj`: object 8 corners in world frame [num_envs, 8, 3]
+- `self.target_site.data.root_pos_w`: basket center world pos [num_envs, 3]
+- `self.target_site_radius`: basket XY acceptance radius (scalar)
+- `self.basket_corners_world`: basket 8 corners in world frame [num_envs, 8, 3]
+- `self.grasped`: bool [num_envs], True if object is stably grasped this step
+- `self.high_enough`: bool [num_envs], True if object lifted above basket rim
+- `self.stage`: one-hot stage [num_envs, 5] — use for stage-conditioned rewards
+- `self.site_to_target_pos`: basket_center − object_center [num_envs, 3]
+
+Design multi-stage rewards following the stage structure above. Use `self.stage` to condition rewards on the current stage. The reward must be monotonically improving across stages (see reward formatting instructions).
+        """,
+        "success_metric": (
+            """obj_z = self.target_object.data.root_pos_w[env_ids, 2]
+    basket_z = self.basket_corners_world[env_ids, :, 2]
+    basket_bottom_z = basket_z.min(dim=1).values
+    basket_top_z = basket_z.max(dim=1).values
+    low_enough = obj_z < basket_top_z
+    high_enough_for_basket = obj_z > basket_bottom_z
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+
+    success = inside_site & low_enough & high_enough_for_basket
+    stage_masked = self.stage[env_ids].clone()
+    stage_masked = stage_masked * (~success).unsqueeze(-1)
+    for i in range(1, self.num_stages):  # Log stages 1-4; skip stage 0 (default)
+        extras[f'Eureka/stage_{i}'] = stage_masked[:, i].float().mean()
+
+    extras['Eureka/success_metric'] = success.float().mean()
+    """
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+        "consider_stage_in_success_metric": True,
+    },
+
+
+
+    "TestPickItUpButter": {
+        "description": """Pick up the target object (butter) and drop it inside the basket. This is a multi-stage, long-horizon task.
+
+## Task stages (reflected in self.stage one-hot [num_envs, 5])
+- Stage 0: default — EEF not yet positioned above object
+- Stage 1: pregrasp — EEF is close in XY and positioned above the object
+- Stage 2: grasped — stable bilateral contact detected, EEF close to object
+- Stage 3: lifted — object grasped AND lifted above basket rim
+- Stage 4: over basket — object inside basket XY footprint (ready to release)
+- Success: object inside basket volume (low_enough & high_enough_for_basket & inside_site)
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.to_desired_rot`: quat from current→desired grasp orientation [num_envs, 4]; reward w→1 for correct approach angle
+- `self.target_object.data.root_pos_w`: object center world pos [num_envs, 3]
+- `self.target_object.data.root_quat_w`: object world quat [num_envs, 4]
+- `self.corners_target_obj`: object 8 corners in world frame [num_envs, 8, 3]
+- `self.target_site.data.root_pos_w`: basket center world pos [num_envs, 3]
+- `self.target_site_radius`: basket XY acceptance radius (scalar)
+- `self.basket_corners_world`: basket 8 corners in world frame [num_envs, 8, 3]
+- `self.grasped`: bool [num_envs], True if object is stably grasped this step
+- `self.high_enough`: bool [num_envs], True if object lifted above basket rim
+- `self.stage`: one-hot stage [num_envs, 5] — use for stage-conditioned rewards
+- `self.site_to_target_pos`: basket_center − object_center [num_envs, 3]
+
+Design multi-stage rewards following the stage structure above. Use `self.stage` to condition rewards on the current stage. The reward must be monotonically improving across stages (see reward formatting instructions).
+        """,
+        "success_metric": (
+            """obj_z = self.target_object.data.root_pos_w[env_ids, 2]
+    basket_z = self.basket_corners_world[env_ids, :, 2]
+    basket_bottom_z = basket_z.min(dim=1).values
+    basket_top_z = basket_z.max(dim=1).values
+    low_enough = obj_z < basket_top_z
+    high_enough_for_basket = obj_z > basket_bottom_z
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+
+    success = inside_site & low_enough & high_enough_for_basket
+    stage_masked = self.stage[env_ids].clone()
+    stage_masked = stage_masked * (~success).unsqueeze(-1)
+    for i in range(1, self.num_stages):  # Log stages 1-4; skip stage 0 (default)
+        extras[f'Eureka/stage_{i}'] = stage_masked[:, i].float().mean()
+
+    extras['Eureka/success_metric'] = success.float().mean()
+    """
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+        "consider_stage_in_success_metric": True,
+    },
+
+
+
     "PlaceInBasketNoGrasp": {
         "consider_stage_in_success_metric": False,
         "description": """**Stage 2 (no-grasp ablation) — Place the object inside the basket without grasp/stage detection.**

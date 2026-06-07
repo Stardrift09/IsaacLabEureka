@@ -117,8 +117,10 @@ class Eureka:
         self.use_vlm = use_vlm
 
         # Logging
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        self._log_dir = os.path.join(EUREKA_ROOT_DIR, "logs", "eureka", task, timestamp)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
+        job_id = os.environ.get("SLURM_JOB_ID", "")
+        folder_name = f"{timestamp}_{job_id}" if job_id else timestamp
+        self._log_dir = os.path.join(EUREKA_ROOT_DIR, "logs", "eureka", task, folder_name)
         os.makedirs(self._log_dir)
 
         # We import here because doing this before launching Kit causes GLIBCXX errors
@@ -291,8 +293,8 @@ class Eureka:
                 # Best metric is the one closest to the target
                 # Smooth the data with a moving average to get a stable max
                 
-                if metric_name == "success_metric": # if not considering multiple stages: then use success metric as the only judge
-                    if not self.consider_stage_in_success_metric: # success metric is only task score when stages are not used
+                if metric_name == "success_metric":
+                    if not self.consider_stage_in_success_metric:
                         metric_name = "task_score"
                     success_metric_max = self._compute_best_metric(metric_data)
                 data_string = [f"{data:.2f}" for data in metric_data[::feedback_subsampling]]

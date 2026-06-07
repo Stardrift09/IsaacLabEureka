@@ -18,7 +18,8 @@ Make sure any new tensor or variable you introduce is on the same device as self
 The output of the reward function should consist of two items:
     (1) the total reward, which has a dimension of (self.num_envs,) and is a torch.Tensor,
     (2) a dictionary of each individual, unweighted reward component. The reward components should be designed to be informative, enabling identification of where the policy fails and providing actionable insights for improving the reward function.
-The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
+    (3) Never name a reward component success_metric
+    The code output should be formatted as a python code string: "```python ... ```" and contain only the get_rewards_eureka function.
 
 Some helpful tips for writing the reward function code:
     (1) You are using Isaaclab 2.3. Design the reward to be GPU-safe and training-stable: avoid unguarded division, ensure all exponentials and normalizations are bounded, sanitize all environment state inputs with torch.nan_to_num, and assert the reward remains finite for every timestep, including resets and failure states.
