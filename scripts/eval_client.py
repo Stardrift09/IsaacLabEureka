@@ -25,7 +25,9 @@ the LeRobot dataset layout:
   - ``observation.images.image``  : agentview RGB  HxWx3 uint8
   - ``observation.images.image2`` : wrist eye-in-hand RGB HxWx3 uint8
 and applies an 8-dim action (7 arm joint-position targets + 1 gripper) through
-physics (joint PD, gains 3000/260), exactly matching how the dataset was made.
+physics (joint PD), exactly matching how the dataset was made. For a policy this
+uses the env's NATIVE actuator gains (the rsl_rl->BC dataset is collected with
+them); --self_test uses 3000/260; explicit --kp/--kd override either.
 
 IMPORTANT — environment separation:
     This file imports **no** ``lerobot``. IsaacLab and LeRobot don't co-resolve
@@ -70,13 +72,54 @@ from isaaclab.app import AppLauncher
 # 1. CLI + launch IsaacSim (before importing isaaclab task modules)
 # ----------------------------------------------------------------------------
 parser = argparse.ArgumentParser(description="IsaacLab PickItUp eval driver against a remote LeRobot policy.")
-parser.add_argument("--task", type=str, default="EvalPickItUpOneEnv")
+parser.add_argument("--task", type=str, default="EvalPickItUpOneEnv",
+                    help="Registered env id. Use OodEvalPickItUpOneEnv (or pass "
+                         "--object_pos_noise) to test out-of-distribution target-object inits.")
 parser.add_argument("--episodes", type=int, default=5)
+# Init-state randomization overrides (applied to the env cfg before make; None = keep
+# the cfg's value). --object_pos_noise is the OOD knob: Gaussian std (m) of XY jitter
+# on the TARGET OBJECT at reset. arm/basket provided for completeness.
+parser.add_argument("--object_pos_noise", type=float, default=None,
+                    help="Override target-object XY reset noise (m). On normal tasks this is the "
+                         "Gaussian std (train/eval=0.03). On OodEvalPickItUpOneEnv it is the OUTER "
+                         "radius of the uniform OOD annulus (default 0.06). Higher = more OOD.")
+parser.add_argument("--object_pos_floor", type=float, default=None,
+                    help="OOD only (OodEvalPickItUpOneEnv): inner radius / min target-object "
+                         "displacement (m) of the uniform annulus. Guarantees no episode lands in "
+                         "the in-distribution core. Maps to cfg.object_pos_noise_floor; ignored elsewhere.")
+parser.add_argument("--init_ring_outer_diam", type=float, default=None,
+                    help="Clean envs only (PickItUpClean family): override the init ring OUTER "
+                         "diameter (m). Object/basket reset uniformly in the disk of radius "
+                         "diam/2 around nominal. Collection used 0.24 (radius 0.12); set smaller "
+                         "(e.g. 0.06) to eval on a narrower in-distribution band. Ignored if absent.")
+parser.add_argument("--arm_joint_noise", type=float, default=None,
+                    help="Override arm-joint reset noise std (rad).")
+parser.add_argument("--basket_pos_noise", type=float, default=None,
+                    help="Override basket XY reset noise std (m).")
+parser.add_argument("--sim_dt", type=float, default=None,
+                    help="Override physics sim.dt to match the env the dataset was recorded in "
+                         "(MimicGen pick-basket = 0.01; EvalPickItUpClean default = 1/180).")
+parser.add_argument("--max_steps", type=int, default=None,
+                    help="Episode truncation budget in CONTROL steps (sets episode_length_s). The "
+                         "default (519, from the LIBERO demos) clips the longer MimicGen trajectories "
+                         "(up to ~545). Use with a matching --horizon. e.g. --max_steps 600 --horizon 600.")
 parser.add_argument("--controller", type=str, default="joint_pd", choices=["joint_pd", "osc"])
-parser.add_argument("--kp", type=float, default=3000.0, help="joint_pd arm stiffness (sweep winner 3000).")
-parser.add_argument("--kd", type=float, default=260.0, help="joint_pd arm damping (sweep winner 260).")
+parser.add_argument("--kp", type=float, default=None,
+                    help="joint_pd arm stiffness. Default: env-native gains for a policy (matches how "
+                         "the rsl_rl->BC dataset was collected); 3000 for --self_test.")
+parser.add_argument("--kd", type=float, default=None,
+                    help="joint_pd arm damping. Default: env-native gains for a policy; 260 for --self_test.")
+parser.add_argument("--eval_fps", type=int, default=60,
+                    help="Control rate for eval_step (action hold = round(120/eval_fps) physics "
+                         "steps). Must MATCH the dataset fps. Default: 60 for a policy "
+                         "(60 fps rsl_rl->BC dataset), 20 for --self_test (LIBERO demos are 20 fps).")
 parser.add_argument("--task_text", type=str, default="pick up the alphabet_soup and put it in the basket")
 parser.add_argument("--json_out", type=str, default=None)
+parser.add_argument("--save_init_states", type=str, default=None,
+                    help="If set, write ONE JSON file with each episode's initial state "
+                         "(object/basket/robot pose; for OodEvalPickItUpOneEnv also the OOD "
+                         "displacement vector/radius) AND its success flag. For checking real "
+                         "OOD performance vs init distance. Only the non-record eval loop.")
 # Data collection: record a LeRobot dataset (videos + state/action) while rolling
 # out the policy, split into successful/ vs unsuccessful/ by the terminated flag.
 # Use --task EvalPickItUpOneEnv for randomized inits (recommended for collection).
@@ -87,7 +130,7 @@ parser.add_argument("--horizon", type=int, default=None,
 # Remote policy server
 parser.add_argument("--server_url", type=str, default="http://127.0.0.1:8080")
 parser.add_argument("--request_timeout", type=float, default=120.0)
-parser.add_argument("--policy_type", type=str, default=None)
+parser.add_argument("--policy_type", type=str, default="act")
 parser.add_argument("--pretrained_path", type=str, default=None)
 parser.add_argument("--policy_device", type=str, default="cuda")
 parser.add_argument(
@@ -99,6 +142,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 # Visual policy -> cameras are always needed.
 args_cli.enable_cameras = True
+args_cli.headless = False
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -211,10 +255,66 @@ def main():
     env_cfg = parse_env_cfg(args_cli.task, device=device, num_envs=1)
     env_cfg.sim.device = device
     env_cfg.record_cameras = True  # produce observation.images.image / image2
+    # Physics dt override: match the env the dataset was RECORDED in. The MimicGen pick-basket
+    # data is recorded at sim.dt=0.01; EvalPickItUpClean defaults to 1/180, so the same joint
+    # targets integrate to slightly different motion. Set --sim_dt 0.01 to remove that mismatch.
+    # (With --eval_fps 20 the control period stays 0.05s: round((1/20)/0.01)=5 substeps.)
+    if args_cli.sim_dt is not None:
+        env_cfg.sim.dt = args_cli.sim_dt
+        print(f"[client] sim.dt overridden -> {env_cfg.sim.dt}")
+    # Episode truncation budget: max_episode_length = episode_length_s / (sim.dt * decimation).
+    # Set it from --max_steps (in control steps) so the longer MimicGen rollouts aren't cut short.
+    # Computed AFTER the sim_dt override so it uses the final dt.
+    if args_cli.max_steps is not None:
+        env_cfg.episode_length_s = args_cli.max_steps * env_cfg.sim.dt * env_cfg.decimation
+        print(f"[client] max_steps={args_cli.max_steps} -> episode_length_s={env_cfg.episode_length_s:.3f}")
+    # Init-state randomization overrides (OOD testing): None -> keep the cfg value.
+    for field in ("object_pos_noise", "arm_joint_noise", "basket_pos_noise"):
+        val = getattr(args_cli, field)
+        if val is not None:
+            setattr(env_cfg, field, val)
+    # Clean-env init ring width (PickItUpClean family). Lets you sweep eval init spread to
+    # separate "policy-limited" from "distribution-width-limited" success.
+    if args_cli.init_ring_outer_diam is not None:
+        if hasattr(env_cfg, "init_ring_outer_diam"):
+            env_cfg.init_ring_outer_diam = args_cli.init_ring_outer_diam
+        else:
+            print(f"[client] WARNING: --init_ring_outer_diam ignored: task {args_cli.task} "
+                  f"has no init_ring_outer_diam (use a PickItUpClean-family task).")
+    # OOD min-displacement floor: only OodEvalPickItUpOneEnvCfg has this field.
+    if args_cli.object_pos_floor is not None:
+        if hasattr(env_cfg, "object_pos_noise_floor"):
+            env_cfg.object_pos_noise_floor = args_cli.object_pos_floor
+        else:
+            print(f"[client] WARNING: --object_pos_floor ignored: task {args_cli.task} "
+                  f"has no object_pos_noise_floor (use --task OodEvalPickItUpOneEnv).")
+    floor = getattr(env_cfg, "object_pos_noise_floor", None)
+    print(f"[client] init noise: object_pos_noise={env_cfg.object_pos_noise} "
+          f"arm_joint_noise={env_cfg.arm_joint_noise} basket_pos_noise={env_cfg.basket_pos_noise} "
+          f"object_pos_floor={floor} (randomize_init={env_cfg.randomize_init})")
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
     env.REPLAY_CONTROLLER = args_cli.controller
     if args_cli.controller == "joint_pd":
-        env.PD_KP, env.PD_KD = args_cli.kp, args_cli.kd
+        # Gains: leave PD_KP/PD_KD = None to keep the env's NATIVE ImplicitActuator gains
+        # (shoulder 1500/200, forearm 1200/180) -- this is what collect_rsl_rl.py used to
+        # make the dataset, so a policy MUST eval at the same gains to reproduce the actions.
+        # self_test (LIBERO demo replay) keeps the 3000/260 sweep winner. Explicit --kp/--kd
+        # always override.
+        kp = args_cli.kp if args_cli.kp is not None else (3000.0 if args_cli.self_test else None)
+        kd = args_cli.kd if args_cli.kd is not None else (260.0 if args_cli.self_test else None)
+        if kp is not None:
+            env.PD_KP = kp
+        if kd is not None:
+            env.PD_KD = kd
+        print(f"[client] joint_pd gains: "
+              f"{'env-native (1500/200, 1200/180)' if kp is None and kd is None else f'kp={kp} kd={kd}'}")
+    # eval control rate: must match the dataset fps. 60 fps for a policy (the
+    # rsl_rl->BC dataset is collected at 60 fps via collect_rsl_rl --record_every 1);
+    # 20 fps for --self_test (LIBERO demo actions are 20 fps). steps = round(120/fps).
+    eval_fps = args_cli.eval_fps if args_cli.eval_fps is not None else (20 if args_cli.self_test else 60)
+    steps = max(1, round((1.0 / eval_fps) / env.cfg.sim.dt))
+    env.EVAL_STEPS_PER_FRAME = steps
+    print(f"[client] eval_fps={eval_fps} -> EVAL_STEPS_PER_FRAME={steps} (sim.dt={env.cfg.sim.dt})")
     env.reset()
 
     remote = None
@@ -233,6 +333,10 @@ def main():
     # policy is the SAME remote/self-test callable, reset between episodes at t==0.
     # ------------------------------------------------------------------
     if args_cli.record_dir:
+        if args_cli.save_init_states:
+            print("[client] WARNING: --save_init_states is only collected in the non-record "
+                  "eval loop; ignored together with --record_dir.", flush=True)
+
         def policy_fn(obs, ep, t):
             if args_cli.self_test:
                 return env.demo_action_sequence(ep)[t]
@@ -270,12 +374,31 @@ def main():
             return demo_seq[t]
         return remote.act(obs_to_payload(obs, args_cli.task_text))[0]  # [8]
 
+    # Horizon/reset source: for a POLICY with randomized/OOD inits the episode index
+    # is NOT a demo index (there are only len(env.episodes) demos), so DON'T tie the
+    # horizon or the reset to a per-episode demo -- that IndexErrors once --episodes
+    # exceeds the demo count. Use --horizon, else the longest demo (same rule as the
+    # collection path run_policy_rollout_all). --self_test replays a real demo, so it
+    # still indexes demos, wrapping with modulo if --episodes exceeds the count.
+    n_demos = len(env.episodes)
+    policy_horizon = (args_cli.horizon if args_cli.horizon is not None
+                      else max(env.demo_action_sequence(i).shape[0] for i in range(n_demos)))
+
     n_success = 0
     results = []
     for ep in range(args_cli.episodes):
-        demo_seq = env.demo_action_sequence(ep)  # [T, 8]
-        horizon = demo_seq.shape[0]
-        obs = env.eval_reset(ep)
+        if args_cli.self_test:
+            demo_seq = env.demo_action_sequence(ep % n_demos)  # [T, 8] demo actions
+            horizon = demo_seq.shape[0]
+            reset_idx = ep % n_demos
+        else:
+            demo_seq = None                 # policy path never reads demo_seq
+            horizon = policy_horizon
+            reset_idx = ep                  # randomized/OOD reset ignores the index
+        obs = env.eval_reset(reset_idx)
+        # init-state snapshot (right after reset, before any action) for OOD analysis
+        init_state = (env.eval_init_state()
+                      if args_cli.save_init_states and hasattr(env, "eval_init_state") else None)
         if remote is not None:
             remote.reset()
         success = False
@@ -286,15 +409,25 @@ def main():
         info = {"success": False, "grasped": False, "object_z": float("nan")}
         for t in range(horizon):
             action = get_action(obs, demo_seq, t)
+
+            # # gripper command from policy (last dim; >0 = open) vs actual finger pos
+            # grip_cmd = float(np.asarray(action).reshape(-1)[-1])
+            # grip_act = float(np.asarray(obs["observation.state"]).reshape(-1)[7])
+            # print(
+            #     f"[client] ep {ep:>3} t {t:>3}: grip_cmd={grip_cmd:+.3f}  "
+            #     f"grip_act(finger_joint1)={grip_act:.4f}",
+            #     flush=True,
+            # )
             obs, terminated, truncated, info = env.eval_step(action)
             success = success or info["success"]
             grasped_ever = grasped_ever or bool(info["grasped"])
             if info["success"]:
                 break
         n_success += int(success)
-        results.append(
-            {"episode": ep, "success": bool(success), "grasped": grasped_ever, "object_z": info["object_z"]}
-        )
+        rec = {"episode": ep, "success": bool(success), "grasped": grasped_ever, "object_z": info["object_z"]}
+        if init_state is not None:
+            rec["init_state"] = init_state
+        results.append(rec)
         print(
             f"[client] ep {ep:>3}: success={success}  grasped(ever)={grasped_ever}  "
             f"obj_z={info['object_z']:.3f}",
@@ -312,6 +445,18 @@ def main():
                 indent=2,
             )
         print(f"[client] wrote summary to {args_cli.json_out}", flush=True)
+
+    if args_cli.save_init_states:
+        with open(args_cli.save_init_states, "w") as f:
+            json.dump(
+                {"task": args_cli.task, "n_episodes": args_cli.episodes,
+                 "n_success": n_success, "success_rate": rate / 100.0,
+                 "object_pos_noise": getattr(env.cfg, "object_pos_noise", None),
+                 "object_pos_noise_floor": getattr(env.cfg, "object_pos_noise_floor", None),
+                 "episodes": results},   # each entry carries init_state + success
+                f, indent=2,
+            )
+        print(f"[client] wrote init states + success to {args_cli.save_init_states}", flush=True)
 
     env.close()
     torch.cuda.empty_cache()

@@ -3,24 +3,33 @@
 This is the RL->BC data path. An rsl_rl (PPO) policy drives the env through its
 NATIVE action interface (8-dim *delta* actions, `_pre_physics_step`, 60 Hz control =
 decimation 2 @ 120 Hz) -- so it CANNOT go through `eval_client.py` / `eval_step`
-(those apply *absolute* targets at 20 Hz and talk to the LeRobot BC server). Instead
+(those apply *absolute* joint targets and talk to the LeRobot BC server). Instead
 we run it like `scripts/play.py` and record on `env_0`:
 
-  - `observation.state`  [8]  : 7 arm joint pos + 1 gripper (`_state8`)
-  - `action`             [8]  : the ABSOLUTE joint targets the policy commanded
-                                (`_target8`, = `robot_dof_targets`), so the dataset
-                                is action-compatible with the replay/BC dataset and
-                                `eval_step`.
+  - `observation.state`  [8]  : 7 arm joint pos + 1 gripper (`_state8`), ACHIEVED qpos.
+  - `action`             [8]  : the COMMANDED absolute joint target (`_target8` =
+        `robot_dof_targets`) -- the clamped PD target the policy actually drove the arm
+        with. This is the ONLY representation that REPLAYS: feeding it back through
+        `eval_step` reproduces the rollout (8-9/10 success). The arm actuator is soft
+        (stiffness ~1.5k, effort cap 80 Nm), so the bang-bang policy holds the target at
+        the joint LIMITS to generate torque via large position error; the achieved state
+        is far from the target (corr ~0, 52-99% saturated) BY DESIGN.
+        NOTE: do NOT record the achieved next-state (state[t+1]) as the action -- it has
+        ~0 position error once reached -> ~0 holding/lifting torque -> open-loop replay
+        gives 0/10 (arm cannot lift). Verified by scripts/replay_recorded_actions.py.
+        Caveat: this action is near-bang-bang, so it is harder for BC to imitate; the
+        clean long-term fix is to retrain RL with a smooth position-control action space
+        (then achieved ~= commanded and next-state would be both faithful AND learnable).
   - `observation.images.image` / `image2` : agentview + wrist RGB, 256^2
 
 Output is the SAME layout as `scripts/replay_record.py` (reuses the env's
 `_write_episode_recording` / `_write_dataset_manifest`), split into
 `successful/` vs `unsuccessful/` by the task-success (`terminated`) flag, so the
-existing converter turns it into the `pickitup_replay` schema (codebase v3.0,
-fps 20) unchanged.
+existing converter turns it into the `pickitup_replay` schema unchanged.
 
-Control is 60 Hz; the dataset is 20 fps -> we record every `--record_every` (=3)
-control step.
+Control is 60 Hz; we capture every `--record_every` control step, and the dataset
+fps is computed from the sim cfg (`_recording_fps`) = 60 / record_every. So the
+default `--record_every 1` records at 60 fps; pass `--record_every 3` for 20 fps.
 
 Run in the IsaacLab env (conda `eureka`); NO policy server needed:
     ~/miniconda3/envs/eureka/bin/python -u scripts/collect_rsl_rl.py \
@@ -75,6 +84,19 @@ def main(args_cli):
     # ---- rollout + record ---------------------------------------------------
     import os
     os.makedirs(args_cli.record_dir, exist_ok=True)
+
+    # Cap episodes at args_cli.max_frames control steps. max_episode_length is a
+    # property derived from cfg.episode_length_s, and _get_dones truncates at
+    # episode_length_buf >= max_episode_length - 1, after which env.step() auto-resets
+    # env_0 -- so the existing done/record loop needs no other change. Set this BEFORE
+    # max_steps below so the safety net tracks the new (shorter) cap.
+    if args_cli.max_frames and args_cli.max_frames > 0:
+        control_dt = u.cfg.sim.dt * u.cfg.decimation
+        u.cfg.episode_length_s = args_cli.max_frames * control_dt
+        print(f"[collect_rsl_rl] episode cap = {args_cli.max_frames} frames "
+              f"(episode_length_s={u.cfg.episode_length_s:.4f}, "
+              f"max_episode_length={u.max_episode_length})", flush=True)
+
     max_steps = int(u.max_episode_length) + 5  # truncation safety net
 
     obs = env.get_observations()
@@ -87,29 +109,47 @@ def main(args_cli):
     ep = 0
     cam_frames, states_log, actions_log = fresh()
     step_in_ep, grasped_ever = 0, False
+    # fps derived from the sim cfg (no hard-coding): we capture every
+    # `record_every` control steps, and each control step is `decimation` physics
+    # steps -> fps = 1 / (record_every * decimation * sim.dt) = 60 / record_every.
+    rec_fps = u._recording_fps(args_cli.record_every * u.cfg.decimation)
     print(f"[collect_rsl_rl] task={task} episodes={args_cli.num_episodes} "
-          f"record_every={args_cli.record_every} -> {args_cli.record_dir}", flush=True)
+          f"record_every={args_cli.record_every} fps={rec_fps} -> {args_cli.record_dir}", flush=True)
 
     while ep < args_cli.num_episodes:
+        # PAIRING (critical for BC): a dataset row must be (image_t, state_t, T_t) -- the
+        # observation BEFORE acting paired with the target applied at it. So capture the
+        # frame+state at the TOP (= obs_t, the current sim configuration) and read the
+        # applied target T_t AFTER the step (robot_dof_targets, set by _pre_physics_step
+        # from `actions`). Capturing POST-step instead stores (image_{t+1}, state_{t+1},
+        # T_t): the label lags one control step, so the policy learns to re-command the
+        # target that produced the CURRENT state and stalls. The near-bang-bang target
+        # swings ~0.12 rad/joint/step, so that lag is a ~7-degree systematic error per
+        # step. (Subsample 60 Hz control -> dataset fps = 60 / record_every.)
+        record_now = (step_in_ep % args_cli.record_every == 0)
+        if record_now:
+            fr = u._capture_frame()                              # image_t
+            state_t = u._state8().detach().cpu().numpy().copy()  # state_t
         with torch.inference_mode():
             actions = policy(obs)
             obs, _, dones, _ = env.step(actions)
 
-        # env.step() auto-resets terminated/truncated envs INSIDE the call, so once
-        # `done` the obs / _capture_frame / _state8 / _target8 already reflect the
-        # NEXT episode's reset state. Detect done first and skip recording that step
-        # (finalize the episode from the frames recorded on prior, in-episode steps).
+        # env.step() auto-resets terminated/truncated envs INSIDE the call, so once `done`
+        # the env already reflects the NEXT episode's reset state. Detect done and skip
+        # recording that step (the final obs_t/T_t pair is dropped; finalize from prior
+        # in-episode steps).
         done = bool(dones[0].item()) or step_in_ep >= max_steps
 
         if not done:
-            # subsample 60 Hz control -> 20 fps dataset; record POST-step (state/frame
-            # paired with the absolute target that produced them).
-            if step_in_ep % args_cli.record_every == 0:
-                fr = u._capture_frame()
+            if record_now:
                 for name in cam_frames:
                     cam_frames[name].append(fr[name])
-                states_log.append(u._state8().detach().cpu().numpy().copy())
-                actions_log.append(u._target8().detach().cpu().numpy().copy())
+                states_log.append(state_t)
+                # action = the COMMANDED clamped joint target (`_target8` = robot_dof_targets),
+                # all 8 dims. This is the actual PD target the policy drove the arm with, and
+                # the ONLY action that replays through eval_step (next-state gives 0/10 -- no
+                # lifting torque). See the module docstring.
+                actions_log.append(u._target8().detach().cpu().numpy().copy())  # T_t
             grasped_ever = grasped_ever or bool(u.grasped[0].item())
             step_in_ep += 1
             continue
@@ -121,13 +161,14 @@ def main(args_cli):
         if len(states_log) == 0:
             print(f"  ep {ep:>3}: empty (no recorded frames), skipping", flush=True)
         else:
+            # actions_log already holds the per-step commanded `_target8` (no post-processing).
             stats = {
                 "episode": ep, "controller": u.REPLAY_CONTROLLER,
                 "frames": len(states_log), "terminated_step": -1,
                 "success": success, "grasped": grasped_ever,
             }
             stats.update(u._write_episode_recording(
-                args_cli.record_dir, ep, success, cam_frames, states_log, actions_log))
+                args_cli.record_dir, ep, success, cam_frames, states_log, actions_log, rec_fps))
             results.append(stats)
             print(f"  ep {ep:>3}: success={success}  grasped(ever)={grasped_ever}  "
                   f"frames={len(states_log)}  {'OK ' if success else 'FAIL'}", flush=True)
@@ -138,7 +179,7 @@ def main(args_cli):
         # fixed at the root in TestPickItUp._reset_idx (assignment, not no-op fill_).
 
     if results:
-        u._write_dataset_manifest(args_cli.record_dir, results, len(results))
+        u._write_dataset_manifest(args_cli.record_dir, results, len(results), rec_fps)
     n_succ = sum(bool(r["success"]) for r in results)
     print(f"[collect_rsl_rl] DONE | success {n_succ}/{len(results)} "
           f"({100.0 * n_succ / max(len(results), 1):.1f}%) -> {args_cli.record_dir}", flush=True)
@@ -153,14 +194,19 @@ if __name__ == "__main__":
     parser.add_argument("--task", type=str, default="EvalPickItUpOneEnv",
                         help="Randomized + camera env sharing TestPickItUp obs/action.")
     parser.add_argument("--checkpoint", type=str, required=True, help="Absolute path to model_*.pt.")
-    parser.add_argument("--num_episodes", type=int, default=500, help="Number of episodes to collect.")
+    parser.add_argument("--num_episodes", type=int, default=10000, help="Number of episodes to collect.")
+    parser.add_argument("--max_frames", type=int, default=100,
+                        help="Truncate (and reset) each episode after this many control steps. "
+                             "Caps long non-success rollouts; successful episodes end earlier. "
+                             "Pass 0 to disable and use the env's default episode length.")
     parser.add_argument("--record_dir", type=str,
-                        default="logs/collect_rsl_rl", help="Output dir (LeRobot-convertible).")
-    parser.add_argument("--record_every", type=int, default=3,
-                        help="Record every Nth control step (60 Hz / 3 = 20 fps).")
+                        default="logs/collect_rsl_rl_v15", help="Output dir (LeRobot-convertible).")
+    parser.add_argument("--record_every", type=int, default=1,
+                        help="Record every Nth control step. Dataset fps = 60 / N "
+                             "(N=1 -> 60 fps, N=3 -> 20 fps).")
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--stochastic", action="store_true", default=False,
                         help="Sample actions (training behavior) instead of the policy mean.")
-    parser.add_argument("--headless", action="store_true", default=False)
+    parser.add_argument("--headless", action="store_true", default=True)
     args_cli = parser.parse_args()
     main(args_cli)

@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_eureka_iterations",
         type=int,
-        default=20,
+        default=10,
         help="The number of Eureka iterations to run.",
     )
     parser.add_argument(

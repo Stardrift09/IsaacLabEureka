@@ -187,6 +187,84 @@ Design multi-stage rewards following the stage structure above. Use `self.stage`
         "consider_stage_in_success_metric": True,
     },
 
+    "PickItUpCollideClean": {
+        "description": """Starting with the target object (alphabet_soup) ALREADY GRASPED in the air, knock the tomato_sauce can by displacing it far enough. This is the ONLY goal — there is no basket placement.
+
+## Initial condition
+The episode STARTS with the object already grasped mid-air. The reset samples the initial robot joint state + held-object pose + basket pose from a file of recorded grasp-moment states, so the object is held from t=0 and the policy must keep holding it. There is NO approach/grasp-from-table sub-task. The tomato_sauce can sits on the table at a fixed nominal spawn.
+
+## Objective (the only goal)
+While keeping the object grasped, steer the held object so it CONTACTS and DISPLACES the tomato_sauce can by MORE than `self.cfg.collision_displacement_threshold` (0.1 m) from its initial position. The episode SUCCEEDS (terminates) when the can has moved past that threshold AND the object is still grasped (`self.grasped`) — the knock must be made with the held object, not by dropping or throwing it.
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.target_object.data.root_pos_w`: held object center world pos [num_envs, 3]
+- `self.target_object.data.root_quat_w`: held object world quat [num_envs, 4]
+- `self.corners_target_obj`: held object 8 corners in world frame [num_envs, 8, 3]
+- `self.collision_object.data.root_pos_w`: tomato_sauce can world pos [num_envs, 3]
+- `self.collision_obj_pos`: tomato_sauce can world pos [num_envs, 3]
+- `self.collision_object_init_pos`: tomato_sauce can initial (spawn) pos [num_envs, 3]
+- `self.collision_triggered`: bool [num_envs], latched True once the can is displaced past the threshold
+- `self.cfg.collision_displacement_threshold`: 0.1 m
+- `self.grasped`: bool [num_envs], True if the object is stably grasped this step
+
+Design rewards to: keep the object grasped (gripper closed), steer the held object toward the can (e.g. reward decreasing distance from the held object to `self.collision_obj_pos`), and strongly reward displacing the can past 0.1 m (reward `self.collision_triggered` becoming True, and/or the can's displacement from `self.collision_object_init_pos`). Add regularization on joint speed and action rate for smooth motion.
+        """,
+        "consider_stage_in_success_metric": False,
+        "success_metric": (
+            """success = self.collision_triggered[env_ids] & self.grasped[env_ids]
+    extras['Eureka/success_metric'] = success.float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
+
+    "PlaceAfterCollideClean": {
+        "description": """Starting with the target object (alphabet_soup) ALREADY GRASPED in the air AND MOVING (post-collision momentum), place it inside the basket. This is the place phase that follows the collide phase.
+
+## Initial condition
+The episode STARTS from a recorded POST-COLLISION state: the object is grasped, lifted off the table, and the arm + object carry velocity from the moment a prior collision was accomplished (the reset replays robot joint pos+vel and object/basket pose+vel from a file). There is NO grasp-from-table sub-task; keep the object held and bring it to the basket. The collision object (tomato_sauce) is NOT present in this phase.
+
+## Objective
+Carry the grasped, moving object over the basket and release it so it ends up inside the basket volume. Damp out the initial momentum smoothly, keep the grasp until over the basket, then lower/release.
+
+## Key attributes
+- `self.robot_grasp_pos`: EEF TCP world pos [num_envs, 3]
+- `self.robot_grasp_rot`: EEF TCP world quat [num_envs, 4]
+- `self.to_desired_rot`: quat from current→desired grasp orientation [num_envs, 4]; reward w→1 for correct orientation
+- `self.target_object.data.root_pos_w`: object center world pos [num_envs, 3]
+- `self.target_object.data.root_quat_w`: object world quat [num_envs, 4]
+- `self.target_object.data.root_lin_vel_w`: object linear velocity [num_envs, 3] (nonzero at reset)
+- `self.corners_target_obj`: object 8 corners in world frame [num_envs, 8, 3]
+- `self.target_site.data.root_pos_w`: basket center world pos [num_envs, 3]
+- `self.target_site_radius`: basket XY acceptance radius (scalar)
+- `self.basket_corners_world`: basket 8 corners in world frame [num_envs, 8, 3]
+- `self.grasped`: bool [num_envs], True if object is stably grasped this step
+- `self.high_enough`: bool [num_envs], True if object lifted above basket rim
+- `self.stage`: one-hot stage [num_envs, 5] — use for stage-conditioned rewards
+
+Design rewards to: settle the initial velocity, carry the held object over the basket, and place/release it inside. Reward decreasing object→basket distance and the in-basket condition; add regularization on joint speed and action rate.
+        """,
+        "consider_stage_in_success_metric": False,
+        "success_metric": (
+            """obj_z = self.target_object.data.root_pos_w[env_ids, 2]
+    basket_z = self.basket_corners_world[env_ids, :, 2]
+    basket_bottom_z = basket_z.min(dim=1).values
+    basket_top_z = basket_z.max(dim=1).values
+    low_enough = obj_z < basket_top_z
+    high_enough_for_basket = obj_z > basket_bottom_z
+    obj_xy = self.target_object.data.root_pos_w[env_ids, :2]
+    site_pos = self.target_site.data.root_pos_w[env_ids, :2]
+    dist2 = ((obj_xy - site_pos)**2).sum(dim=-1)
+    inside_site = dist2 < self.target_site_radius**2
+    success = inside_site & low_enough & high_enough_for_basket
+    extras['Eureka/success_metric'] = success.float().mean()"""
+        ),
+        "success_metric_to_win": 1.0,
+        "success_metric_tolerance": 0.05,
+    },
+
     "TestPickItUpKetchup": {
         "description": """Pick up the target object (ketchup) and drop it inside the basket. This is a multi-stage, long-horizon task.
 
@@ -786,16 +864,19 @@ Add regularisation on joint speed and action rate for smooth motion.
     },
 
     "TestSlightCollideAndPlace": {
-        "description": """**Objective:**
-Pick up the target object (alphabet_soup), lightly collide it with the tomato_sauce can, then place the target object inside the basket. The collision must be gentle: the tomato_sauce may be displaced at most 0.2 m from its initial position. The basket must remain untouched throughout.
+        "description": """**Initial condition:**
+The episode STARTS with the target object (alphabet_soup) already grasped in the gripper, mid-air (start_in_the_air). There is NO approach/grasp sub-task — the object is held from t=0 and the policy must keep it held.
+
+**Objective:**
+While holding the object, lightly collide it with the tomato_sauce can, then place the target object inside the basket. The collision must be gentle: the tomato_sauce may be displaced at most 0.2 m from its initial position. The basket must remain untouched throughout.
 
 ## Task sequence and constraints
 
-### 1) Approach and grasp
-- Move the end-effector to the target object and grasp it cleanly without pushing it.
+### 1) Keep the grasp
+- The object starts grasped in the air. Keep the gripper closed and the object held until the release step.
 
 ### 2) Light collision with tomato_sauce
-- Move the grasped object so it contacts and slightly displaces the tomato_sauce (≥ 5 cm, ≤ 20 cm from its initial position).
+- Move the held object so it contacts and slightly displaces the tomato_sauce (≥ 5 cm, ≤ 20 cm from its initial position).
 - `self.collision_triggered[env_ids]`: True once displacement ≥ 5 cm.
 - `self.cfg.collision_max_displacement`: 0.2 m upper bound.
 - `self.collision_obj_pos`: tomato_sauce world position [num_envs, 3].

@@ -312,7 +312,19 @@ class EurekaTaskManager:
             if self.checkpoint_to_resume_from:
                 assert os.path.isfile(self.checkpoint_to_resume_from), \
                     f"Checkpoint not found: {self.checkpoint_to_resume_from}"
-                runner.load(self.checkpoint_to_resume_from)
+                # The checkpoint only warm-starts when its observation/action layout matches
+                # the current task. A task that changes the obs dim (e.g. PickItUpCollideClean
+                # adds the tomato_sauce pos+quat -> 78 vs the pick_it_up 71) cannot load a
+                # mismatched policy; fall back to training from scratch instead of crashing
+                # the whole Eureka iteration.
+                try:
+                    runner.load(self.checkpoint_to_resume_from)
+                except RuntimeError as e:
+                    if "size mismatch" in str(e):
+                        print(f"[WARNING] Resume checkpoint incompatible with this task's "
+                              f"obs/action layout; training from scratch. ({e})")
+                    else:
+                        raise
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
             # run everything in inference mode
 

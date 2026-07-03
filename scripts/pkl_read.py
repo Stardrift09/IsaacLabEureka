@@ -66,8 +66,16 @@ import os
 
 
 
-import gzip
-file = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/libero/trajs/libero/pick_up_the_bbq_sauce_and_place_it_in_the_basket/v2/franka_v2.pkl.gz"
-with gzip.open(file, "rb") as f:
-    obj = pickle.load(f)
-    import pdb; pdb.set_trace()
+# import gzip
+# file = "/home/shaotongchen/workspace_eureka/IsaacLabEureka/libero/trajs/libero/pick_up_the_bbq_sauce_and_place_it_in_the_basket/v2/franka_v2.pkl.gz"
+# with gzip.open(file, "rb") as f:
+#     obj = pickle.load(f)
+#     import pdb; pdb.set_trace()
+
+import numpy as np
+
+data = np.load("/home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/collect_rsl_rl_v7/successful/ep01/arrays.npz")
+import pdb 
+pdb.set_trace()
+
+print("1")

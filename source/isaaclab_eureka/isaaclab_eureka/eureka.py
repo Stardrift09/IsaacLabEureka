@@ -22,7 +22,7 @@ from isaaclab_eureka.config import (
     REPLAY_FEEDBACK_PROMPT,
     BEST_ITERATION_FEEDBACK_PROMPT,
 )
-from isaaclab_eureka.managers import EurekaTaskManager, LLMManager
+from isaaclab_eureka.managers import EurekaTaskManager, make_llm_manager
 from isaaclab_eureka.utils import load_tensorboard_logs
 
 
@@ -88,7 +88,7 @@ class Eureka:
         import multiprocessing
         multiprocessing.set_start_method("spawn")
         print("[INFO]: Setting up the LLM Manager...")
-        self._llm_manager = LLMManager(
+        self._llm_manager = make_llm_manager(
             gpt_model=gpt_model,
             num_suggestions=self._num_processes,
             temperature=temperature,

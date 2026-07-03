@@ -9,10 +9,14 @@
       "Bash(echo \"EXIT=$?\")",
       "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -u scripts/replay_record.py --episodes 1 --log_dir logs/rec_wrist)",
       "Bash(grep -n \"^class \\\\|^@configclass\\\\|^@configclass$\" /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/test_pick_it_up.py)",
-      "Read(//IsaacLab/docker/cluster/exports/isaac-lab-base.sif/workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/**)"
+      "Read(//IsaacLab/docker/cluster/exports/isaac-lab-base.sif/workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/direct/franka_cabinet/**)",
+      "Bash(cd /home/shaotongchen/workspace_eureka/IsaacLabEureka *)",
+      "Bash(tail -30 /tmp/claude-1003/-home-shaotongchen-workspace-eureka-IsaacLabEureka/ed6371d4-9e1d-4b39-b877-12ac6258cfbd/tasks/bxcu3j9l0.output)",
+      "Bash(/home/shaotongchen/miniconda3/envs/eureka/bin/python -m py_compile IsaacLab/scripts/tools/libero_to_isaaclab_demos.py IsaacLab/scripts/imitation_learning/isaaclab_mimic/annotate_demos.py IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_basket/pick_basket_env_cfg.py)"
     ],
     "additionalDirectories": [
-      "/home/shaotongchen/lerobot/scripts"
+      "/home/shaotongchen/lerobot/scripts",
+      "/tmp"
     ]
   }
 }

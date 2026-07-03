@@ -17,7 +17,7 @@ from isaaclab_eureka.config import (
     TASK_SUCCESS_PRE_FEEDBACK_PROMPT,
     TASKS_CFG,
 )
-from isaaclab_eureka.managers import EurekaTaskManager, LLMManager
+from isaaclab_eureka.managers import EurekaTaskManager, make_llm_manager
 from isaaclab_eureka.utils import load_tensorboard_logs
 
 
@@ -70,7 +70,7 @@ class Eureka:
         self._num_processes = num_parallel_runs
 
         print("[INFO]: Setting up the LLM Manager...")
-        self._llm_manager = LLMManager(
+        self._llm_manager = make_llm_manager(
             gpt_model=gpt_model,
             num_suggestions=self._num_processes,
             temperature=temperature,

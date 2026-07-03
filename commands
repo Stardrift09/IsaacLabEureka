@@ -3,6 +3,18 @@ pip install qwen-vl-utils
 pip install accelerate
 
 
+# play with two checkpoints, for collision
+
+cd /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/scripts/reinforcement_learning/rsl_rl && /home/shaotongchen/miniconda3/envs/eureka/bin/python -u   /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/scripts/reinforcement_learning/rsl_rl/play_pick_collide_place.py   --task PickItUpCollideClean   --num_envs 16   --headless --video --video_length 400   --pick_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/logs/rsl_rl/pick_it_up_clean/2026-06-17_18-04-11/model_2998.pt   --collide_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up_clean/2026-06-30_10-44-01_Run-0_tueilsy-st-13/model_1499.pt
+
+/home/shaotongchen/miniconda3/envs/eureka/bin/python -u \
+  /home/shaotongchen/workspace_eureka/IsaacLabEureka/scripts/collect_init_states_collided.py \
+  --checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up_clean/2026-06-30_10-44-01_Run-0_tueilsy-st-13/model_1499.pt \
+  --num_envs 64 --num_states 1000 --max_frames 120 \
+  --out /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/init_states_collided.npz --headless
+
+cd /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/scripts/reinforcement_learning/rsl_rl && /home/shaotongchen/miniconda3/envs/eureka/bin/python -u   /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/scripts/reinforcement_learning/rsl_rl/play_pick_collide_place.py   --task PickItUpCollideClean --num_envs 16 --video --video_length 400   --pick_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/logs/rsl_rl/pick_it_up_clean/2026-06-17_18-04-11/model_2998.pt   --collide_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/logs/rl_runs/rsl_rl_eureka/pick_it_up_clean/2026-06-30_10-44-01_Run-0_tueilsy-st-13/model_1499.pt   --place_checkpoint /home/shaotongchen/workspace_eureka/IsaacLabEureka/IsaacLab/logs/rsl_rl/pick_it_up_clean/2026-06-30_16-18-12/model_1499.pt
+
 ~/lerobot/.venv/bin/python ~/lerobot/scripts/convert_replay_to_lerobot.py \
   --in .../logs/replay_record --repo-id local/pickitup_replay \
   --root ~/lerobot/datasets/pickitup_replay --overwrite
@@ -13,6 +25,11 @@ cd IsaacLab/docker
 python container.py start base --files docker-compose.eureka.yaml
 # inside container:
 /isaac-sim/python.sh -m pip install -e /workspace/isaaclab_eureka
+
+
+cd /home/shaotongchen/workspace_eureka/IsaacLabEureka
+HDF5_USE_FILE_LOCKING=FALSE /home/shaotongchen/miniconda3/envs/eureka/bin/python scripts/record_generated_parallel.py   --input_file logs/pb_generated_1000_r003.hdf5   --output_dir logs/replay_record_mimicgen_r003_v1  --keep_stride 3 --num_envs 16 --fps 20 --enable_cameras --headless
+
 
 
 
